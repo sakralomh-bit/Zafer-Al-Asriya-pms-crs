@@ -1,0 +1,119 @@
+{
+    "$schema": "https://getcomposer.org/schema.json",
+    "name": "zafer-al-asriya/pms-crs",
+    "type": "project",
+    "description": "Zafer Al-Asriya v1.0 — PMS/CRS modular monolith (D-006, ADR-0001, ADR-0017).",
+    "keywords": ["pms", "laravel", "modular-monolith"],
+    "license": "proprietary",
+    "require": {
+        "php": "^8.3",
+        "ext-bcmath": "*",
+        "ext-intl": "*",
+        "ext-json": "*",
+        "ext-mbstring": "*",
+        "ext-openssl": "*",
+        "ext-pdo": "*",
+        "laravel/framework": "^13.17",
+        "laravel/tinker": "^3.0"
+    },
+    "require-dev": {
+        "fakerphp/faker": "^1.23",
+        "larastan/larastan": "^3.0",
+        "laravel/pint": "^1.27",
+        "mockery/mockery": "^1.6",
+        "nunomaduro/collision": "^8.6",
+        "phpunit/phpunit": "^12.5.12"
+    },
+    "autoload": {
+        "psr-4": {
+            "App\\": "app/",
+            "Database\\Factories\\": "database/factories/",
+            "Database\\Seeders\\": "database/seeders/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Tests\\": "tests/"
+        }
+    },
+    "scripts": {
+        "analyse": [
+            "@php vendor/bin/phpstan analyse --memory-limit=1G"
+        ],
+        "lint": [
+            "@php vendor/bin/pint --test"
+        ],
+        "lint:fix": [
+            "@php vendor/bin/pint"
+        ],
+        "format:check": [
+            "@php vendor/bin/pint --test"
+        ],
+        "test": [
+            "@php artisan config:clear --ansi @no_additional_args",
+            "@php artisan test"
+        ],
+        "test:unit": [
+            "@php artisan test --testsuite=Unit"
+        ],
+        "test:feature": [
+            "@php artisan test --testsuite=Feature"
+        ],
+        "guard:money": [
+            "@php artisan zafer:guard-money"
+        ],
+        "guard:module-boundaries": [
+            "@php artisan zafer:guard-modules"
+        ],
+        "guard:strict-types": [
+            "@php artisan zafer:guard-strict-types"
+        ],
+        "guard:no-prohibited-schema": [
+            "@php artisan zafer:guard-prohibited-schema"
+        ],
+        "verify": [
+            "@composer guard:strict-types",
+            "@composer guard:money",
+            "@composer guard:module-boundaries",
+            "@composer guard:no-prohibited-schema",
+            "@composer lint",
+            "@composer analyse",
+            "@composer test"
+        ],
+        "ci": [
+            "@composer verify"
+        ],
+        "post-autoload-dump": [
+            "Illuminate\\Foundation\\ComposerScripts::postAutoloadDump",
+            "@php artisan package:discover --ansi"
+        ],
+        "post-root-package-install": [
+            "@php -r \"file_exists('.env') || copy('.env.example', '.env');\""
+        ],
+        "post-create-project-cmd": [
+            "@php artisan key:generate --ansi"
+        ],
+        "pre-package-uninstall": [
+            "Illuminate\\Foundation\\ComposerScripts::prePackageUninstall"
+        ]
+    },
+    "extra": {
+        "laravel": {
+            "dont-discover": [
+                "laravel/pail",
+                "laravel/pao"
+            ]
+        }
+    },
+    "config": {
+        "optimize-autoloader": true,
+        "preferred-install": "dist",
+        "sort-packages": true,
+        "allow-plugins": {
+            "pestphp/pest-plugin": true,
+            "php-http/discovery": true
+        }
+    },
+    "minimum-stability": "stable",
+    "prefer-stable": true
+}
