@@ -51,6 +51,9 @@ final class PhysicalRoom extends DomainModel
         'lock_version' => 'integer',
     ];
 
+    /**
+     * @return BelongsTo<RoomType, $this>
+     */
     public function roomType(): BelongsTo
     {
         return $this->belongsTo(RoomType::class, 'room_type_id');

@@ -39,12 +39,11 @@ final class ScopeGrantService
         private readonly AuthorizationService $authorization,
         private readonly PropertyScopeResolver $scopeResolver,
         private readonly AuditRecorder $audit,
-    ) {
-    }
+    ) {}
 
     /**
      * @throws PermissionDenied when the actor lacks `scope.grant`
-     * @throws DomainFailure   when the actor would be granting to themselves
+     * @throws DomainFailure when the actor would be granting to themselves
      */
     public function grant(
         User $actor,

@@ -6,6 +6,8 @@ namespace Tests\Feature;
 
 use App\Modules\Identity\Authorization\Permission;
 use App\Modules\Identity\Authorization\Role;
+use App\Modules\Identity\Models\User;
+use App\Modules\Organization\Models\Property;
 use App\Modules\Rooms\Contracts\RoomSnapshot;
 use App\Modules\Rooms\Contracts\RoomStatusPort;
 use App\Modules\Rooms\Domain\RoomStatusAxis;
@@ -14,13 +16,12 @@ use App\Modules\Rooms\Domain\RoomStatusTransition;
 use App\Modules\Rooms\Models\PhysicalRoom;
 use App\Modules\Rooms\Models\RoomType;
 use App\Modules\Rooms\Services\RoomStatusService;
-use App\Modules\Identity\Models\User;
-use App\Modules\Organization\Models\Property;
 use App\Shared\Audit\AuditAction;
 use App\Shared\Authorization\PermissionDenied;
 use App\Shared\Authorization\PropertyScopeDenied;
 use App\Shared\Domain\DomainFailure;
 use App\Shared\Domain\ErrorCode;
+use Database\Seeders\AuthorizationCatalogueSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
@@ -48,8 +49,8 @@ use Tests\TestCase;
  */
 final class RoomStatusMachineTest extends TestCase
 {
-    use RefreshDatabase;
     use CreatesTestFixtures;
+    use RefreshDatabase;
 
     private RoomStatusService $service;
 
@@ -61,7 +62,7 @@ final class RoomStatusMachineTest extends TestCase
     {
         parent::setUp();
 
-        $this->seed(\Database\Seeders\AuthorizationCatalogueSeeder::class);
+        $this->seed(AuthorizationCatalogueSeeder::class);
 
         $this->service = $this->app->make(RoomStatusService::class);
         $this->machine = $this->app->make(RoomStatusMachine::class);
@@ -89,7 +90,7 @@ final class RoomStatusMachineTest extends TestCase
                 $forbidden,
                 $columns,
                 "physical_rooms must NOT carry a single [{$forbidden}] column; that is the model "
-                . 'this axis design exists to replace.',
+                .'this axis design exists to replace.',
             );
         }
     }
@@ -105,7 +106,7 @@ final class RoomStatusMachineTest extends TestCase
         $this->service->markReserved($room);
         $this->service->markOccupied($room);
 
-        $fresh = $room->fresh();
+        $fresh = $this->reread($room);
 
         $this->assertSame('OCCUPIED', $fresh->occupancy_status->value);
         $this->assertSame('INSPECTED', $fresh->housekeeping_status->value);
@@ -157,7 +158,7 @@ final class RoomStatusMachineTest extends TestCase
         // The three axes are genuinely disjoint sets of edges. If they shared an
         // edge, the machine would be one status column wearing three hats.
         $edges = array_map(
-            static fn (RoomStatusTransition $t): string => $t->axis->value . ':' . $t->from . '>' . $t->to,
+            static fn (RoomStatusTransition $t): string => $t->axis->value.':'.$t->from.'>'.$t->to,
             RoomStatusMachine::transitions(),
         );
 
@@ -173,13 +174,13 @@ final class RoomStatusMachineTest extends TestCase
         $room = $this->makeRoom(['housekeeping_status' => 'INSPECTED']);
 
         $this->service->markReserved($room);
-        $this->assertSame('RESERVED', $room->fresh()->occupancy_status->value);
+        $this->assertSame('RESERVED', $this->reread($room)->occupancy_status->value);
 
         $this->service->markOccupied($room);
-        $this->assertSame('OCCUPIED', $room->fresh()->occupancy_status->value);
+        $this->assertSame('OCCUPIED', $this->reread($room)->occupancy_status->value);
 
         $this->service->markVacantAfterCheckOut($room);
-        $this->assertSame('VACANT', $room->fresh()->occupancy_status->value);
+        $this->assertSame('VACANT', $this->reread($room)->occupancy_status->value);
     }
 
     public function test_a_reservation_can_be_released_without_a_checkout(): void
@@ -189,7 +190,7 @@ final class RoomStatusMachineTest extends TestCase
         $this->service->markReserved($room);
         $this->service->markReleased($room);
 
-        $this->assertSame('VACANT', $room->fresh()->occupancy_status->value);
+        $this->assertSame('VACANT', $this->reread($room)->occupancy_status->value);
     }
 
     public function test_the_housekeeping_lifecycle_runs_end_to_end(): void
@@ -197,19 +198,19 @@ final class RoomStatusMachineTest extends TestCase
         $room = $this->makeRoom(['housekeeping_status' => 'CLEAN']);
 
         $this->service->startHousekeeping($room);
-        $this->assertSame('IN_PROGRESS', $room->fresh()->housekeeping_status->value);
+        $this->assertSame('IN_PROGRESS', $this->reread($room)->housekeeping_status->value);
 
         $this->service->markDirty($room);
-        $this->assertSame('DIRTY', $room->fresh()->housekeeping_status->value);
+        $this->assertSame('DIRTY', $this->reread($room)->housekeeping_status->value);
 
         $this->service->markClean($room);
-        $this->assertSame('CLEAN', $room->fresh()->housekeeping_status->value);
+        $this->assertSame('CLEAN', $this->reread($room)->housekeeping_status->value);
 
         $this->service->markInspected($room);
-        $this->assertSame('INSPECTED', $room->fresh()->housekeeping_status->value);
+        $this->assertSame('INSPECTED', $this->reread($room)->housekeeping_status->value);
 
         $this->service->failReinspection($room, 'The mirror was missed.', 'corr-1');
-        $this->assertSame('DIRTY', $room->fresh()->housekeeping_status->value);
+        $this->assertSame('DIRTY', $this->reread($room)->housekeeping_status->value);
     }
 
     // =====================================================================
@@ -286,13 +287,13 @@ final class RoomStatusMachineTest extends TestCase
 
         $this->service->markVacantAfterCheckOut($room, 'corr-checkout');
 
-        $this->assertSame('VACANT', $room->fresh()->occupancy_status->value);
+        $this->assertSame('VACANT', $this->reread($room)->occupancy_status->value);
     }
 
     public function test_a_failed_transition_leaves_the_room_untouched(): void
     {
         $room = $this->makeRoom();
-        $before = $room->fresh();
+        $before = $this->reread($room);
 
         try {
             $this->service->markOccupied($room);
@@ -300,7 +301,7 @@ final class RoomStatusMachineTest extends TestCase
             // expected
         }
 
-        $after = $room->fresh();
+        $after = $this->reread($room);
 
         $this->assertSame($before->occupancy_status->value, $after->occupancy_status->value);
         $this->assertSame($before->housekeeping_status->value, $after->housekeeping_status->value);
@@ -478,7 +479,7 @@ final class RoomStatusMachineTest extends TestCase
 
         $this->service->markReserved($room);
 
-        $this->assertGreaterThan($start, (int) $room->fresh()->lock_version);
+        $this->assertGreaterThan($start, (int) $this->reread($room)->lock_version);
     }
 
     /**
@@ -527,7 +528,7 @@ final class RoomStatusMachineTest extends TestCase
     }
 
     /**
-     * @param array<string, string> $attributes
+     * @param  array<string, string>  $attributes
      */
     private function makeRoom(array $attributes = [], ?Property $property = null): PhysicalRoom
     {

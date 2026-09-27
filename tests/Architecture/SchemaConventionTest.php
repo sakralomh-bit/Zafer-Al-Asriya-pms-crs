@@ -175,7 +175,7 @@ final class SchemaConventionTest extends TestCase
                 'char(26)',
                 $type,
                 "Table [{$table}] id must be a fixed 26-character ULID, not a varying or "
-                . 'auto-incrementing type (DM-1).',
+                .'auto-incrementing type (DM-1).',
             );
         }
     }
@@ -198,7 +198,7 @@ final class SchemaConventionTest extends TestCase
                     'PRI',
                     $key,
                     "Table [{$table}] makes [{$natural}] a primary key. DM-1 requires a stable "
-                    . 'internal surrogate identifier instead.',
+                    .'internal surrogate identifier instead.',
                 );
             }
         }
@@ -311,7 +311,7 @@ final class SchemaConventionTest extends TestCase
      */
     private function columns(string $table): array
     {
-        $rows = DB::select('SHOW COLUMNS FROM `' . $table . '`');
+        $rows = DB::select('SHOW COLUMNS FROM `'.$table.'`');
 
         $columns = [];
 

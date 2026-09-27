@@ -44,16 +44,16 @@ enum AuditAction: string
     case HousekeepingReinspectionFailed = 'HOUSEKEEPING_REINSPECTION_FAILED';
     case RoomOutOfOrder = 'ROOM_OUT_OF_ORDER';
     case RoomReturnedToService = 'ROOM_RETURNED_TO_SERVICE';
-case RoomBlocked = 'ROOM_BLOCKED';
-case RoomUnblocked = 'ROOM_UNBLOCKED';
+    case RoomBlocked = 'ROOM_BLOCKED';
+    case RoomUnblocked = 'ROOM_UNBLOCKED';
 
-// `ADR-0016`: the trail "records attempts, denials, and configuration changes".
-// A refused room transition is a denial and is audited like one. Before this
-// existed, `RoomStatusService::transition()` recorded the SUCCESS path and let
-// the refusal propagate unaudited, so a caller repeatedly attempting an illegal
-// transition left no trace at all — precisely the behaviour a compliance review
-// asks about and cannot answer.
-case RoomStatusTransitionDenied = 'ROOM_STATUS_TRANSITION_DENIED';
+    // `ADR-0016`: the trail "records attempts, denials, and configuration changes".
+    // A refused room transition is a denial and is audited like one. Before this
+    // existed, `RoomStatusService::transition()` recorded the SUCCESS path and let
+    // the refusal propagate unaudited, so a caller repeatedly attempting an illegal
+    // transition left no trace at all — precisely the behaviour a compliance review
+    // asks about and cannot answer.
+    case RoomStatusTransitionDenied = 'ROOM_STATUS_TRANSITION_DENIED';
 
     // Room master data (FR-001)
     case RoomTypeCreated = 'ROOM_TYPE_CREATED';

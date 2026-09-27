@@ -47,7 +47,7 @@ final class AuditRecorder
      */
     public function recordDenial(AuditRecord $record, DomainFailure $failure): void
     {
-        $result = 'DENIED_' . $failure->errorCode->value;
+        $result = 'DENIED_'.$failure->errorCode->value;
 
         $this->insert($record, $result);
 

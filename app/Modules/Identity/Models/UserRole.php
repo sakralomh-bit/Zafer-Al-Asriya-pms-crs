@@ -36,11 +36,17 @@ final class UserRole extends DomainModel
         'lock_version' => 'integer',
     ];
 
+    /**
+     * @return BelongsTo<User, $this>
+     */
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class, 'user_id');
     }
 
+    /**
+     * @return BelongsTo<RoleRecord, $this>
+     */
     public function roleRecord(): BelongsTo
     {
         return $this->belongsTo(RoleRecord::class, 'role_id');

@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Shared\Tenancy;
 
+use App\Modules\Organization\Models\Property;
+use App\Shared\Domain\DomainModel;
 use App\Shared\Domain\DomainRuleViolation;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -19,17 +21,25 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * property-scoped model is only reachable through `forProperty()`, so a
  * forgotten `WHERE property_id` is a missing method call rather than a silent
  * cross-property read.
+ *
+ * @phpstan-require-extends DomainModel
  */
 trait ScopedToProperty
 {
+    /**
+     * @return BelongsTo<Property, $this>
+     */
     public function property(): BelongsTo
     {
-        return $this->belongsTo(\App\Modules\Organization\Models\Property::class, 'property_id');
+        return $this->belongsTo(Property::class, 'property_id');
     }
 
     /**
      * Constrain a query to one property. The property id is a required argument
      * and is never inferred from a request payload.
+     *
+     * @param  Builder<$this>  $query
+     * @return Builder<$this>
      */
     public function scopeForProperty(Builder $query, string $propertyId): Builder
     {
@@ -40,6 +50,6 @@ trait ScopedToProperty
             );
         }
 
-        return $query->where($this->getTable() . '.property_id', $propertyId);
+        return $query->where($this->getTable().'.property_id', $propertyId);
     }
 }

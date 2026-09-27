@@ -17,8 +17,7 @@ final class RoomStatusTransition
         public readonly string $to,
         public readonly RoomTransitionActor $actor,
         public readonly AuditAction $auditAction,
-    ) {
-    }
+    ) {}
 
     public function matches(RoomStatusAxis $axis, string $from, string $to): bool
     {

@@ -104,7 +104,7 @@ final class GuardModuleBoundaries extends Command
 
         $missing = array_values(array_filter(
             self::MODULES,
-            static fn (string $module): bool => ! is_dir($modulesRoot . '/' . $module),
+            static fn (string $module): bool => ! is_dir($modulesRoot.'/'.$module),
         ));
 
         $violations = [];
@@ -117,14 +117,14 @@ final class GuardModuleBoundaries extends Command
         foreach (self::MODULES as $module) {
             $violations = array_merge(
                 $violations,
-                $this->scanModule($modulesRoot . '/' . $module, $module, $root),
+                $this->scanModule($modulesRoot.'/'.$module, $module, $root),
             );
         }
 
         if ($violations !== []) {
             $this->error(sprintf('Module boundary guard failed with %d violation(s):', count($violations)));
             foreach ($violations as $violation) {
-                $this->line('  - ' . $violation);
+                $this->line('  - '.$violation);
             }
             $this->error('Cross-module access must go through the providing module\'s Contracts namespace.');
 

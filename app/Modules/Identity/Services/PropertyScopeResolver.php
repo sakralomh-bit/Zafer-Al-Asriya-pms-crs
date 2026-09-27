@@ -63,9 +63,24 @@ final class PropertyScopeResolver
      * Forget cached grants. Called after a grant or revoke so a change of scope
      * takes effect immediately rather than at next login — `ADR-0014` §6 and
      * `AC-T-004-04` require revocation not to wait for session expiry.
+     *
+     * With an actor, only that actor's entry is dropped. Without one, the whole
+     * cache is dropped. Both forms are used deliberately: a grant or revoke
+     * invalidates exactly one identity, and a test that needs a guaranteed cold
+     * read asks for the whole cache.
+     *
+     * A grant that is not invalidated here stays valid in this cache for the
+     * lifetime of a long-lived worker, which is why the grant path calls it
+     * rather than relying on the request boundary.
      */
-    public function forget(): void
+    public function forget(?Actor $actor = null): void
     {
-        $this->cache = [];
+        if ($actor === null) {
+            $this->cache = [];
+
+            return;
+        }
+
+        unset($this->cache[$actor->identifier()]);
     }
 }

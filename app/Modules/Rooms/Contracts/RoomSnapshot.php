@@ -20,8 +20,7 @@ final readonly class RoomSnapshot
         public string $occupancyStatus,
         public string $housekeepingStatus,
         public string $availabilityStatus,
-    ) {
-    }
+    ) {}
 
     /**
      * `docs/STATE-MACHINES.md` §B.1: occupiable means VACANT, INSPECTED and

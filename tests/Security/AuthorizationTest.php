@@ -8,10 +8,8 @@ use App\Modules\Identity\Authorization\Permission;
 use App\Modules\Identity\Authorization\Role;
 use App\Modules\Identity\Contracts\Actor;
 use App\Modules\Identity\Contracts\AuthorizesRequests;
-use App\Modules\Identity\Models\RoleRecord;
 use App\Modules\Identity\Models\User;
 use App\Modules\Identity\Models\UserPropertyScope;
-use App\Modules\Identity\Models\UserRole;
 use App\Modules\Identity\Services\AuthorizationService;
 use App\Modules\Identity\Services\PropertyScopeResolver;
 use App\Modules\Identity\Services\ScopeGrantService;
@@ -23,10 +21,12 @@ use App\Shared\Authorization\PermissionDenied;
 use App\Shared\Authorization\PropertyScopeDenied;
 use App\Shared\Domain\DomainFailure;
 use App\Shared\Domain\ErrorCode;
+use Database\Seeders\AuthorizationCatalogueSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Str;
 use Tests\Concerns\CreatesTestFixtures;
 use Tests\TestCase;
 
@@ -52,8 +52,8 @@ use Tests\TestCase;
  */
 final class AuthorizationTest extends TestCase
 {
-    use RefreshDatabase;
     use CreatesTestFixtures;
+    use RefreshDatabase;
 
     private AuthorizesRequests $authorization;
 
@@ -100,7 +100,7 @@ final class AuthorizationTest extends TestCase
         $actor = $this->makeUser('agent2@example.test', Role::GroupManager);
 
         $existing = $this->makeProperty('Existing Hotel');
-        $nonexistent = (string) \Illuminate\Support\Str::ulid();
+        $nonexistent = (string) Str::ulid();
 
         $deniedExisting = $this->captureScopeDenial($actor, $existing->id);
         $deniedMissing = $this->captureScopeDenial($actor, $nonexistent);
@@ -114,7 +114,7 @@ final class AuthorizationTest extends TestCase
             $deniedExisting->getMessage(),
             $deniedMissing->getMessage(),
             'A denial must read identically whether or not the property exists, or it becomes an '
-            . 'existence oracle.',
+            .'existence oracle.',
         );
     }
 
@@ -250,7 +250,7 @@ final class AuthorizationTest extends TestCase
                 ErrorCode::PropertyScopeDenied,
                 $denied->errorCode,
                 'An inactive identity must be refused before the scope check, so a suspended user '
-                . 'cannot use the error code to discover which properties exist.',
+                .'cannot use the error code to discover which properties exist.',
             );
         }
     }
@@ -534,7 +534,7 @@ final class AuthorizationTest extends TestCase
                 ->where('action', AuditAction::ScopeSelfGrantDenied->value)
                 ->count(),
             'A self-grant attempt must be audited as a self-grant attempt, distinct from an '
-            . 'ordinary ungranted-property request.',
+            .'ordinary ungranted-property request.',
         );
     }
 
@@ -685,6 +685,6 @@ final class AuthorizationTest extends TestCase
 
     private function seedRolesAndPermissions(): void
     {
-        $this->seed(\Database\Seeders\AuthorizationCatalogueSeeder::class);
+        $this->seed(AuthorizationCatalogueSeeder::class);
     }
 }

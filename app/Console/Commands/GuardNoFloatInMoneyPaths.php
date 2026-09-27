@@ -150,7 +150,7 @@ final class GuardNoFloatInMoneyPaths extends Command
         if ($violations !== []) {
             $this->error(sprintf('No-float guard failed with %d violation(s):', count($violations)));
             foreach ($violations as $violation) {
-                $this->line('  - ' . $violation);
+                $this->line('  - '.$violation);
             }
             $this->error('Use the App\Shared\Money\Money value object. See ADR-0006.');
 

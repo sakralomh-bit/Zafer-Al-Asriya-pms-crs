@@ -11,6 +11,7 @@ use App\Modules\Identity\Models\UserPropertyScope;
 use App\Modules\Identity\Models\UserRole;
 use App\Modules\Organization\Models\Organization;
 use App\Modules\Organization\Models\Property;
+use Illuminate\Database\Eloquent\Model;
 
 /**
  * Shared, SYNTHETIC fixture builders.
@@ -33,13 +34,41 @@ use App\Modules\Organization\Models\Property;
  */
 trait CreatesTestFixtures
 {
+    /**
+     * Re-read a row a test has just written.
+     *
+     * `Model::fresh()` is nullable because in production a row can genuinely be
+     * gone. In a test that just wrote it, a `null` means the assertion is about
+     * to dereference nothing and report a property error instead of the real
+     * cause, so it fails here with the row's class and key.
+     *
+     * @template TModel of Model
+     *
+     * @param  TModel  $model
+     * @return TModel
+     */
+    protected function reread(Model $model): Model
+    {
+        $fresh = $model->fresh();
+
+        if ($fresh === null) {
+            self::fail(sprintf(
+                'Expected to re-read %s [%s] after writing it, but the row is gone.',
+                $model::class,
+                (string) $model->getKey(),
+            ));
+        }
+
+        return $fresh;
+    }
+
     protected function makeOrganization(?string $suffix = null): Organization
     {
-        $suffix ??= substr(md5((string) static::class . uniqid('', true)), 0, 8);
+        $suffix ??= substr(md5((string) static::class.uniqid('', true)), 0, 8);
 
         return Organization::query()->create([
-            'name' => 'Synthetic Group ' . $suffix,
-            'code' => 'ORG' . strtoupper($suffix),
+            'name' => 'Synthetic Group '.$suffix,
+            'code' => 'ORG'.strtoupper($suffix),
             'timezone' => 'Asia/Riyadh',
             'default_currency' => 'SAR',
         ]);
@@ -55,7 +84,7 @@ trait CreatesTestFixtures
         return Property::query()->create([
             'organization_id' => $organization->id,
             'name' => $name,
-            'code' => 'P' . strtoupper(substr(md5($name . uniqid('', true)), 0, 8)),
+            'code' => 'P'.strtoupper(substr(md5($name.uniqid('', true)), 0, 8)),
             'timezone' => 'Asia/Riyadh',
             'currency' => $currency,
             'is_active' => true,
@@ -69,7 +98,7 @@ trait CreatesTestFixtures
     ): User {
         $user = User::query()->create([
             'email' => $email,
-            'name' => 'Test ' . strtoupper(explode('@', $email)[0]),
+            'name' => 'Test '.strtoupper(explode('@', $email)[0]),
             // Not a credential. The hashing algorithm is TBD under SEC-007 and is
             // owned by T-004, so this is a placeholder that cannot authenticate
             // anyone and is not a hash of anything.
@@ -83,7 +112,7 @@ trait CreatesTestFixtures
         // A role is NEVER global: `user_roles.property_id` is a NOT NULL foreign
         // key to `properties` (DATA-MODEL §2.1), so the user needs a property to
         // hold the role IN. This is a role assignment, NOT a scope grant.
-        $roleProperty = $this->makeProperty('Role Anchor for ' . $email);
+        $roleProperty = $this->makeProperty('Role Anchor for '.$email);
 
         UserRole::query()->create([
             'user_id' => $user->id,
@@ -93,7 +122,7 @@ trait CreatesTestFixtures
             'granted_at' => now(),
         ]);
 
-        return $user->fresh();
+        return User::query()->findOrFail($user->id);
     }
 
     protected function grantProperty(User $user, Property $property): UserPropertyScope

@@ -4,8 +4,6 @@ declare(strict_types=1);
 
 namespace App\Shared\Money;
 
-use App\Shared\Domain\DomainRuleViolation;
-
 /**
  * A rounding mode that a caller must supply EXPLICITLY.
  *

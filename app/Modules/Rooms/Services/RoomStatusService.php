@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace App\Modules\Rooms\Services;
 
+use App\Modules\Identity\Authorization\Permission;
 use App\Modules\Identity\Contracts\Actor;
 use App\Modules\Identity\Contracts\AuthorizesRequests;
-use App\Modules\Identity\Authorization\Permission;
 use App\Modules\Rooms\Contracts\RoomSnapshot;
 use App\Modules\Rooms\Contracts\RoomStatusPort;
 use App\Modules\Rooms\Domain\AvailabilityStatus;
@@ -14,14 +14,12 @@ use App\Modules\Rooms\Domain\HousekeepingStatus;
 use App\Modules\Rooms\Domain\OccupancyStatus;
 use App\Modules\Rooms\Domain\RoomStatusAxis;
 use App\Modules\Rooms\Domain\RoomStatusMachine;
-use App\Modules\Rooms\Domain\RoomStatusTransition;
 use App\Modules\Rooms\Models\PhysicalRoom;
 use App\Shared\Audit\AuditAction;
 use App\Shared\Audit\AuditRecord;
 use App\Shared\Audit\AuditRecorder;
-use App\Shared\Domain\ValidationFailed;
 use App\Shared\Domain\DomainFailure;
-use App\Shared\Domain\ErrorCode;
+use App\Shared\Domain\ValidationFailed;
 use BackedEnum;
 use Illuminate\Support\Facades\DB;
 
@@ -56,8 +54,7 @@ final class RoomStatusService implements RoomStatusPort
         private readonly RoomStatusMachine $machine,
         private readonly AuthorizesRequests $authorization,
         private readonly AuditRecorder $audit,
-    ) {
-    }
+    ) {}
 
     // -----------------------------------------------------------------------
     // Occupancy axis
@@ -454,13 +451,12 @@ final class RoomStatusService implements RoomStatusPort
      * what makes "one axis per write" a structural property rather than a
      * convention.
      *
-     * @param OccupancyStatus|HousekeepingStatus|AvailabilityStatus|string $to
-     * @param array<string, mixed> $extraAttributes
-     * @param bool $checkOutCompleted whether the check-out flow has actually
-     *        finished. This is what separates the LEGAL `OCCUPIED -> VACANT`
-     *        (§B.2) from the ILLEGAL one (§B.3 row 1), and the pair itself is
-     *        identical in both cases — so the distinction has to arrive as a
-     *        fact from the caller, not be derived from the room.
+     * @param  array<string, mixed>  $extraAttributes
+     * @param  bool  $checkOutCompleted  whether the check-out flow has actually
+     *                                   finished. This is what separates the LEGAL `OCCUPIED -> VACANT`
+     *                                   (§B.2) from the ILLEGAL one (§B.3 row 1), and the pair itself is
+     *                                   identical in both cases — so the distinction has to arrive as a
+     *                                   fact from the caller, not be derived from the room.
      */
     private function transition(
         PhysicalRoom $room,
@@ -520,7 +516,7 @@ final class RoomStatusService implements RoomStatusPort
                         after: [$axis->value => $to],
                         additionalContext: [
                             'room_number' => $locked->room_number,
-                            'attempted_transition' => $beforeValue . '->' . $to,
+                            'attempted_transition' => $beforeValue.'->'.$to,
                             'denied_code' => $refused->errorCode->value,
                         ],
                     ),
@@ -551,7 +547,7 @@ final class RoomStatusService implements RoomStatusPort
                 after: [$axis->value => $to],
                 additionalContext: [
                     'room_number' => $locked->room_number,
-                    'transition' => $transition->from . '->' . $transition->to,
+                    'transition' => $transition->from.'->'.$transition->to,
                     'actor' => 'room_status_service',
                 ],
             ));

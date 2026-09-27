@@ -15,8 +15,6 @@ use App\Shared\Audit\AuditAction;
 use App\Shared\Audit\AuditRecord;
 use App\Shared\Audit\AuditRecorder;
 use App\Shared\Domain\ValidationFailed;
-use App\Shared\Domain\DomainFailure;
-use App\Shared\Domain\ErrorCode;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -65,8 +63,7 @@ final class HousekeepingTaskService
         private readonly AuthorizesRequests $authorization,
         private readonly RoomStatusPort $roomStatus,
         private readonly AuditRecorder $audit,
-    ) {
-    }
+    ) {}
 
     public function create(
         Actor $actor,
@@ -86,7 +83,7 @@ final class HousekeepingTaskService
         );
 
         return DB::transaction(function () use ($actor, $roomId, $propertyId, $taskType, $reason, $correlationId): HousekeepingTask {
-            $task = new HousekeepingTask();
+            $task = new HousekeepingTask;
             $task->forceFill([
                 'property_id' => $propertyId,
                 'room_id' => $roomId,
@@ -337,8 +334,8 @@ final class HousekeepingTaskService
     // -----------------------------------------------------------------------
 
     /**
-     * @param array<string, mixed> $after
-     * @param array<string, mixed> $timestamps
+     * @param  array<string, mixed>  $after
+     * @param  array<string, mixed>  $timestamps
      */
     private function transition(
         Actor $actor,

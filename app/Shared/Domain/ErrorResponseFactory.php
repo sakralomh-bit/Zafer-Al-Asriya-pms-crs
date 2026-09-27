@@ -24,7 +24,7 @@ use Illuminate\Http\Request;
 final class ErrorResponseFactory
 {
     /**
-     * @param array<int, array{field: string, message: string}> $details
+     * @param  array<int, array{field: string, message: string}>  $details
      */
     public static function make(Request $request, ErrorCode $code, string $message, array $details = []): JsonResponse
     {

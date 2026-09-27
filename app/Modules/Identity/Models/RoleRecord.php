@@ -31,6 +31,8 @@ final class RoleRecord extends DomainModel
      * writes NO pivot timestamps unless the relation declares them. Without
      * this the insert fails outright on the NOT NULL `created_at` column and the
      * whole authorization catalogue is unseedable.
+     *
+     * @return BelongsToMany<PermissionRecord, $this>
      */
     public function permissions(): BelongsToMany
     {
@@ -38,6 +40,9 @@ final class RoleRecord extends DomainModel
             ->withTimestamps();
     }
 
+    /**
+     * @return HasMany<UserRole, $this>
+     */
     public function assignments(): HasMany
     {
         return $this->hasMany(UserRole::class, 'role_id');

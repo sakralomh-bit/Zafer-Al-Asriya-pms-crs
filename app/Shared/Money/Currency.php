@@ -28,8 +28,7 @@ final class Currency
 
     private function __construct(
         public readonly string $code,
-    ) {
-    }
+    ) {}
 
     /**
      * @throws DomainRuleViolation when the code is not three uppercase letters

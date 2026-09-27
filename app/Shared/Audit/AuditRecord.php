@@ -40,9 +40,9 @@ final class AuditRecord
     public const REDACTION_PLACEHOLDER = '[REDACTED]';
 
     /**
-     * @param array<string, mixed>|null $before
-     * @param array<string, mixed>|null $after
-     * @param array<string, mixed> $additionalContext
+     * @param  array<string, mixed>|null  $before
+     * @param  array<string, mixed>|null  $after
+     * @param  array<string, mixed>  $additionalContext
      */
     private function __construct(
         public readonly AuditAction $action,
@@ -58,13 +58,17 @@ final class AuditRecord
         public readonly ?array $before,
         public readonly ?array $after,
         public readonly array $additionalContext,
-    ) {
-    }
+    ) {}
 
     /**
-     * @param array<string, mixed>|null $before
-     * @param array<string, mixed>|null $after
-     * @param array<string, mixed> $additionalContext
+     * `$source` is required and NOT nullable here, because the constructor
+     * requires it: `ADR-0016` §2 lists the source among the fields every audit
+     * event carries, and an event with no source cannot answer "which part of
+     * the system did this". Every call site names its module.
+     *
+     * @param  array<string, mixed>|null  $before
+     * @param  array<string, mixed>|null  $after
+     * @param  array<string, mixed>  $additionalContext
      */
     public static function of(
         AuditAction $action,
@@ -73,7 +77,7 @@ final class AuditRecord
         ?string $propertyId,
         ?string $subjectType,
         ?string $subjectId,
-        ?string $source,
+        string $source,
         ?string $correlationId,
         ?string $reason = null,
         ?array $before = null,
@@ -101,8 +105,7 @@ final class AuditRecord
     /**
      * Recursively replace the value of any sensitive key with a placeholder.
      *
-     * @param array<array-key, mixed> $payload
-     *
+     * @param  array<array-key, mixed>  $payload
      * @return array<array-key, mixed>
      */
     public static function redact(array $payload): array
@@ -186,8 +189,8 @@ final class AuditRecord
      * matching would catch it only by also destroying `occupancy`. Matching a
      * run of whole segments is the only rule that does both jobs at once.
      *
-     * @param list<string> $segments
-     * @param list<string> $wanted
+     * @param  list<string>  $segments
+     * @param  list<string>  $wanted
      */
     private static function containsSegmentRun(array $segments, array $wanted): bool
     {

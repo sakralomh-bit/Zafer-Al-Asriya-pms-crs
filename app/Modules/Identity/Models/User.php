@@ -66,6 +66,8 @@ final class User extends DomainModel implements Actor
 
     /**
      * A property is a GRANT row, not a filter and not a flag.
+     *
+     * @return HasMany<UserPropertyScope, $this>
      */
     public function propertyScopes(): HasMany
     {
@@ -75,6 +77,8 @@ final class User extends DomainModel implements Actor
     /**
      * A role assignment always names the property it applies in. Roles are
      * never global (`DATA-MODEL` §2.1).
+     *
+     * @return HasMany<UserRole, $this>
      */
     public function roleAssignments(): HasMany
     {
@@ -88,6 +92,8 @@ final class User extends DomainModel implements Actor
      * `Actor` contract method and returns the resolved role ENUMS. Two methods
      * with the same name and different meanings is exactly the kind of
      * ambiguity that makes a model unreadable.
+     *
+     * @return BelongsToMany<RoleRecord, $this>
      */
     public function roleRecords(): BelongsToMany
     {
@@ -132,7 +138,7 @@ final class User extends DomainModel implements Actor
                 continue;
             }
 
-            foreach (\App\Modules\Identity\Authorization\RolePermissionMatrix::permissionsFor($roleEnum) as $permission) {
+            foreach (RolePermissionMatrix::permissionsFor($roleEnum) as $permission) {
                 $permissions->push($permission);
             }
         }
@@ -178,14 +184,14 @@ final class User extends DomainModel implements Actor
      */
     public function grantedPropertyIds(): array
     {
-        return $this->propertyScopes()
+        return array_values($this->propertyScopes()
             ->get()
             ->filter(static fn (UserPropertyScope $scope): bool => $scope->isActive())
             ->map(static fn (UserPropertyScope $scope): string => (string) $scope->property_id)
             ->unique()
             ->sort()
             ->values()
-            ->all();
+            ->all());
     }
 
     /**
@@ -193,7 +199,7 @@ final class User extends DomainModel implements Actor
      */
     public function roles(): array
     {
-        return $this->activeRoles()->all();
+        return array_values($this->activeRoles()->all());
     }
 
     public function holds(Permission $permission): bool

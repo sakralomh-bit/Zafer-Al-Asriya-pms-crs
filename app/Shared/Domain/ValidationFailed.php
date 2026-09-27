@@ -22,7 +22,7 @@ use Throwable;
 final class ValidationFailed extends DomainFailure
 {
     /**
-     * @param array<int, array{field: string, message: string}> $details
+     * @param  array<int, array{field: string, message: string}>  $details
      */
     public function __construct(
         string $message,

@@ -291,8 +291,7 @@ final class RolePermissionMatrix
     }
 
     /**
-     * @param list<Permission> $excluded
-     *
+     * @param  list<Permission>  $excluded
      * @return list<Permission>
      */
     private static function allExcept(array $excluded): array

@@ -1,0 +1,172 @@
+# CI for the Zafer Al-Asriya modular monolith.
+#
+# `docs/ADR/0021` §"Every push runs" and `AC-T-001-04` (T-001):
+#   static analysis · lint · unit · state machine · contract · integration ·
+#   security · privacy · accessibility · dependency scanning · secret scanning
+#
+# Only the checks that EXIST in this repository run today. Phases A2 and later add
+# their suites; this file does not pretend to run them, and it does not skip
+# silently — each step below is a command that fails the build when it fails.
+#
+# There is NO deployment job. `B-03` (cloud provider) is unresolved, so there is
+# no environment to deploy to, and `docs/DEPLOYMENT.md` §T-023 owns that. Adding
+# one here would mean inventing a provider.
+#
+# The database credentials below are THROWAWAY values for an ephemeral CI service
+# container. They are not secrets, they are not used anywhere else, and no real
+# credential appears in this repository. `phpunit.xml` carries the same synthetic
+# local values; PHPUnit does not overwrite a variable that already exists in the
+# environment, so these job-level values take precedence without editing it.
+
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+# Least privilege. No job needs write access, and `contents: read` is what makes
+# a compromised third-party action unable to push.
+permissions:
+  contents: read
+
+# A new push to the same branch makes the previous run irrelevant.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  php:
+    name: Guards, static analysis, lint, tests
+    runs-on: ubuntu-latest
+
+    services:
+      mysql:
+        image: mysql:8.4
+        env:
+          # Synthetic, throwaway, scoped to this job's container.
+          MYSQL_ROOT_PASSWORD: ci_only_synthetic_root_pw
+          MYSQL_DATABASE: zafer_pms_test
+          MYSQL_USER: zafer
+          MYSQL_PASSWORD: ci_only_synthetic_app_pw
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping --silent"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=12
+
+    env:
+      APP_ENV: testing
+      DB_CONNECTION: mysql
+      DB_HOST: 127.0.0.1
+      DB_PORT: '3306'
+      DB_DATABASE: zafer_pms_test
+      DB_USERNAME: zafer
+      DB_PASSWORD: ci_only_synthetic_app_pw
+
+    steps:
+      - name: Check out
+        uses: actions/checkout@v4
+
+      - name: Set up PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          # `ext-bcmath` is a HARD requirement, not a preference: ADR-0006 makes
+          # BCMath the money representation, and `composer.json` requires the
+          # extension, so a build without it cannot install dependencies.
+          extensions: bcmath, intl, mbstring, pdo_mysql
+          coverage: none
+          # Stated rather than assumed: `composer audit` in the dependency-scan
+          # step needs a Composer, and this is where it comes from.
+          tools: composer:v2
+
+      - name: Install PHP dependencies
+        run: composer install --no-interaction --prefer-dist --no-progress
+
+      - name: Prepare the application
+        run: |
+          cp .env.example .env
+          php artisan key:generate --ansi
+
+      # The prohibited-schema guard asserts claims about COLUMNS, so it needs a
+      # migrated database. The test suite migrates for itself.
+      - name: Migrate
+        run: php artisan migrate --force --no-interaction
+
+      - name: Guard — strict types
+        run: php artisan zafer:guard-strict-types
+
+      - name: Guard — no float in money paths
+        run: php artisan zafer:guard-money
+
+      - name: Guard — module boundaries
+        run: php artisan zafer:guard-modules
+
+      - name: Guard — prohibited schema
+        run: php artisan zafer:guard-prohibited-schema
+
+      - name: Static analysis
+        run: php vendor/bin/phpstan analyse --memory-limit=1G
+
+      - name: Lint
+        run: php vendor/bin/pint --test
+
+      - name: Tests
+        run: php artisan test
+
+      # `docs/DEPLOYMENT.md` §"Fail the build on high severity".
+      - name: Dependency scan — PHP
+        run: composer audit --no-interaction --locked
+
+  frontend:
+    name: CSS logical properties, build, dependency scan
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      # `AC-T-001-06`: a lint rule rejects physical left/right margin, padding,
+      # inset, and text-align properties. `ADR-0004` names stylelint with
+      # `stylelint-plugin-logical-css`; the config is `.stylelintrc.json`.
+      - name: CSS logical properties
+        run: npm run lint:css
+
+      - name: Build
+        run: npm run build
+
+      - name: Dependency scan — npm
+        run: npm audit --audit-level=high
+
+  secrets:
+    name: Secret scanning
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out full history
+        uses: actions/checkout@v4
+        with:
+          # gitleaks scans commits, not just the working tree, so a shallow
+          # clone would miss a secret that was committed and then edited.
+          fetch-depth: 0
+
+      # `docs/TEST-STRATEGY.md`: "A red secret scan blocks the merge absolutely."
+      # There is no `continue-on-error` here and no allow-list of findings, on
+      # purpose.
+      - name: Scan for secrets
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

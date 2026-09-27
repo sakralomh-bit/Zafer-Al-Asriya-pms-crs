@@ -44,7 +44,7 @@ final class GuardStrictTypes extends Command
                 count($violations),
             ));
             foreach ($violations as $violation) {
-                $this->line('  - ' . $violation);
+                $this->line('  - '.$violation);
             }
             $this->error('Strict typing is a money-safety control (ADR-0006), not a style preference.');
 

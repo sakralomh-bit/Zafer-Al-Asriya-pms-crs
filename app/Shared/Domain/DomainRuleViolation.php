@@ -14,7 +14,7 @@ namespace App\Shared\Domain;
 final class DomainRuleViolation extends DomainFailure
 {
     /**
-     * @param array<int, array{field: string, message: string}> $details
+     * @param  array<int, array{field: string, message: string}>  $details
      */
     public static function businessRuleViolation(string $code, string $message, array $details = []): self
     {
@@ -22,7 +22,7 @@ final class DomainRuleViolation extends DomainFailure
     }
 
     /**
-     * @param array<int, array{field: string, message: string}> $details
+     * @param  array<int, array{field: string, message: string}>  $details
      */
     public static function validationFailed(string $field, string $message, array $details = []): self
     {

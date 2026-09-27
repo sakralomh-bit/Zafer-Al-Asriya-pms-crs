@@ -52,7 +52,13 @@ final class PhpSourceScanner
      * program, and a guard that cannot tell the difference is a guard that gets
      * disabled.
      *
-     * @return list<array{type: int|array{0: int, 1: string}, text: string, line: int}>
+     * `type` is a token id (an `int`) for anything `token_get_all` recognised, and
+     * the raw character for the single-character tokens it returns as a plain
+     * string — `(`, `;`, `,`, `{`. A consumer that cares only about language
+     * constructs checks `is_int($token['type'])`, which is what the money guard
+     * does.
+     *
+     * @return list<array{type: int|string, text: string, line: int}>
      */
     public static function codeTokens(string $file): array
     {

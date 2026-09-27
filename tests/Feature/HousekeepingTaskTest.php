@@ -14,9 +14,11 @@ use App\Modules\Identity\Models\User;
 use App\Modules\Organization\Models\Property;
 use App\Modules\Rooms\Models\PhysicalRoom;
 use App\Modules\Rooms\Models\RoomType;
+use App\Modules\Rooms\Services\RoomStatusService;
+use App\Shared\Authorization\PropertyScopeDenied;
 use App\Shared\Domain\DomainFailure;
-use App\Shared\Domain\ErrorCode;
 use App\Shared\Domain\ValidationFailed;
+use Database\Seeders\AuthorizationCatalogueSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Tests\Concerns\CreatesTestFixtures;
@@ -35,8 +37,8 @@ use Tests\TestCase;
  */
 final class HousekeepingTaskTest extends TestCase
 {
-    use RefreshDatabase;
     use CreatesTestFixtures;
+    use RefreshDatabase;
 
     private HousekeepingTaskService $service;
 
@@ -52,7 +54,7 @@ final class HousekeepingTaskTest extends TestCase
     {
         parent::setUp();
 
-        $this->seed(\Database\Seeders\AuthorizationCatalogueSeeder::class);
+        $this->seed(AuthorizationCatalogueSeeder::class);
 
         $this->service = $this->app->make(HousekeepingTaskService::class);
         $this->property = $this->makeProperty('Housekeeping Hotel');
@@ -128,11 +130,15 @@ final class HousekeepingTaskTest extends TestCase
      */
     public function test_rework_before_inspection_leaves_the_room_clean(): void
     {
+        // Completing the task is what drives the room DIRTY -> CLEAN (§B.2
+        // "Cleaning completed"), so the baseline is read AFTER it, not before.
+        $task = $this->completedTask();
+
         $this->assertSame('CLEAN', $this->axes()['housekeeping']);
 
         $this->service->requireRework(
             $this->inspector,
-            $this->completedTask(),
+            $task,
             'The linen was the wrong shade.',
             'corr-rework-early',
         );
@@ -351,7 +357,7 @@ final class HousekeepingTaskTest extends TestCase
             'corr-ooo-3',
         );
 
-        $this->app->make(\App\Modules\Rooms\Services\RoomStatusService::class)
+        $this->app->make(RoomStatusService::class)
             ->returnToService($this->room, $this->attendant, 'Repaired.', 'corr-ooo-4');
 
         $this->assertSame('SELLABLE', $this->axes()['availability']);
@@ -443,7 +449,7 @@ final class HousekeepingTaskTest extends TestCase
         $outsider = $this->makeUser('outsider@example.test', Role::Housekeeping);
         $foreignRoom = $this->makeRoom(property: $this->makeProperty('Foreign Hotel'));
 
-        $this->expectException(\App\Shared\Authorization\PropertyScopeDenied::class);
+        $this->expectException(PropertyScopeDenied::class);
         $this->service->create($outsider, $foreignRoom->id, $foreignRoom->property_id, 'TURNDOWN', null, 'corr-scope');
     }
 
@@ -506,7 +512,7 @@ final class HousekeepingTaskTest extends TestCase
      */
     private function axes(): array
     {
-        $room = $this->room->fresh();
+        $room = $this->reread($this->room);
 
         return [
             'occupancy' => $room->occupancy_status->value,

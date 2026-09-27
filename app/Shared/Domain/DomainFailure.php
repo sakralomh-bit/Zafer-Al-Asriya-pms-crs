@@ -19,7 +19,7 @@ use Throwable;
 abstract class DomainFailure extends RuntimeException
 {
     /**
-     * @param array<int, array{field: string, message: string}> $details
+     * @param  array<int, array{field: string, message: string}>  $details
      */
     public function __construct(
         public readonly ErrorCode $errorCode,

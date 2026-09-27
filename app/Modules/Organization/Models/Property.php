@@ -37,16 +37,25 @@ final class Property extends DomainModel
         'lock_version' => 'integer',
     ];
 
+    /**
+     * @return BelongsTo<Organization, $this>
+     */
     public function organization(): BelongsTo
     {
         return $this->belongsTo(Organization::class, 'organization_id');
     }
 
+    /**
+     * @return HasMany<PropertyOperatingConfig, $this>
+     */
     public function operatingConfigs(): HasMany
     {
         return $this->hasMany(PropertyOperatingConfig::class, 'property_id');
     }
 
+    /**
+     * @return HasMany<ConfigurationVersion, $this>
+     */
     public function configurationVersions(): HasMany
     {
         return $this->hasMany(ConfigurationVersion::class, 'property_id');

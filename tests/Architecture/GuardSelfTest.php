@@ -427,7 +427,7 @@ final class GuardSelfTest extends TestCase
     }
 
     /**
-     * @param string $relativePath forward-slashed, relative to the project root
+     * @param  string  $relativePath  forward-slashed, relative to the project root
      */
     private function plant(string $relativePath, string $contents): void
     {
@@ -435,7 +435,7 @@ final class GuardSelfTest extends TestCase
 
         $this->assertTrue(is_dir(dirname($path)), "Missing directory for probe: {$relativePath}");
 
-        file_put_contents($path, $contents . "\n");
+        file_put_contents($path, $contents."\n");
 
         $this->planted[] = $path;
     }

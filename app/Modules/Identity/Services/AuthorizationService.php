@@ -39,8 +39,7 @@ final class AuthorizationService implements AuthorizesRequests
     public function __construct(
         private readonly PropertyScopeResolver $scopeResolver,
         private readonly AuditRecorder $audit,
-    ) {
-    }
+    ) {}
 
     /**
      * @throws PropertyScopeDenied|PermissionDenied

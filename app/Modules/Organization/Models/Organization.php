@@ -21,11 +21,17 @@ final class Organization extends DomainModel
         'default_currency',
     ];
 
+    /**
+     * @return HasMany<LegalEntity, $this>
+     */
     public function legalEntities(): HasMany
     {
         return $this->hasMany(LegalEntity::class, 'organization_id');
     }
 
+    /**
+     * @return HasMany<Property, $this>
+     */
     public function properties(): HasMany
     {
         return $this->hasMany(Property::class, 'organization_id');

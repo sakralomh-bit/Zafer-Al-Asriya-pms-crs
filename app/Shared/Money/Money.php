@@ -40,14 +40,58 @@ final class Money implements JsonSerializable, Stringable
      */
     public const MAX_SCALE = 30;
 
+    /**
+     * The amount is held as a `numeric-string`: a decimal that BCMath accepts and
+     * that is therefore safe to hand to `bcadd`/`bcsub`/`bcmul`/`bccomp` without a
+     * further conversion. The declaration is not decoration — every construction
+     * goes through `self::decimal()`, which refuses anything `is_numeric()`
+     * rejects, so the invariant is enforced at the boundary rather than assumed
+     * by the arithmetic further in.
+     *
+     * @param  numeric-string  $amount
+     */
     private function __construct(
         private readonly string $amount,
         private readonly Currency $currency,
-    ) {
+    ) {}
+
+    /**
+     * The single construction path, and the single place the numeric-string
+     * invariant is established.
+     *
+     * Every arithmetic result is routed through here as well, which means a bug
+     * in a scale calculation surfaces as a domain failure naming the amount
+     * rather than as BCMath silently truncating it.
+     */
+    private static function decimal(string $amount, Currency $currency): self
+    {
+        return new self(self::numeric($amount, 'a monetary amount'), $currency);
     }
 
     /**
-     * @param string|int $amount Canonical decimal string such as "1234.56", "-0.10", "7"
+     * The `numeric-string` guarantee, in one place.
+     *
+     * `is_numeric()` is not decoration: BCMath silently treats a non-numeric
+     * argument as zero in some builds, so a value that should have been a decimal
+     * would become a zero amount rather than an error. Every value handed to a
+     * BCMath function passes through here first.
+     *
+     * @return numeric-string
+     */
+    private static function numeric(string $value, string $subject): string
+    {
+        if (! is_numeric($value)) {
+            throw DomainRuleViolation::businessRuleViolation(
+                'MONEY_AMOUNT_NOT_NUMERIC',
+                'Expected '.$subject.' to be a decimal string; it was not numeric.',
+            );
+        }
+
+        return $value;
+    }
+
+    /**
+     * @param  string|int  $amount  Canonical decimal string such as "1234.56", "-0.10", "7"
      *
      * @throws DomainRuleViolation on an unparseable amount
      */
@@ -70,10 +114,15 @@ final class Money implements JsonSerializable, Stringable
         $integer = $integer === '' ? '0' : $integer;
         $fraction = $matches[3] ?? '';
 
-        $canonical = $fraction === '' ? $integer : $integer . '.' . $fraction;
+        $canonical = $fraction === '' ? $integer : $integer.'.'.$fraction;
         $canonical = self::stripNegativeZero($canonical);
 
-        return new self($sign . $canonical, $currency);
+        // A zero magnitude loses its sign. `stripNegativeZero()` runs on the
+        // magnitude, so "-0.00" reached this point as "0" plus a "-" and became
+        // "-0" — a string that is not a canonical decimal, that compares equal to
+        // zero, and that serialises to a client as "-0". The sign is reapplied
+        // only when there is a magnitude to carry it.
+        return self::decimal($canonical === '0' ? '0' : $sign.$canonical, $currency);
     }
 
     public static function zero(Currency|string $currency): self
@@ -107,7 +156,7 @@ final class Money implements JsonSerializable, Stringable
 
         $scale = max($this->scale(), $other->scale());
 
-        return new self(
+        return self::decimal(
             self::stripNegativeZero(bcadd($this->amount, $other->amount, $scale)),
             $this->currency,
         );
@@ -122,14 +171,22 @@ final class Money implements JsonSerializable, Stringable
 
         $scale = max($this->scale(), $other->scale());
 
-        return new self(
+        return self::decimal(
             self::stripNegativeZero(bcsub($this->amount, $other->amount, $scale)),
             $this->currency,
         );
     }
 
     /**
-     * Multiplication by an exact integer factor is exact and needs no scale.
+     * Multiplication by an exact integer factor is exact, and the operand's scale
+     * is preserved.
+     *
+     * The scale is the operand's own, so `1.00 * 3` is `3.00` and not `3`. That
+     * matches `add()` and `subtract()`, which take the wider of the two operand
+     * scales, and it means a ledger line that was written to two decimals does
+     * not silently become a one-decimal number because it happened to be
+     * multiplied. The value is exact either way — comparison is numeric — so this
+     * is about not losing information nobody asked to lose.
      */
     public function multiplyByInteger(int $factor): self
     {
@@ -137,39 +194,62 @@ final class Money implements JsonSerializable, Stringable
             return self::zero($this->currency);
         }
 
-        return new self(
-            self::stripNegativeZero(bcmul($this->amount, (string) $factor, 0)),
+        return self::decimal(
+            self::stripNegativeZero(bcmul($this->amount, (string) $factor, $this->scale())),
             $this->currency,
         );
     }
 
     /**
-     * Multiplication by a decimal factor. The caller MUST state the result scale.
+     * Multiplication by a DECIMAL factor, which is dimensionless — a quantity, a
+     * rate multiplier, a tax fraction. The caller MUST state the result scale.
      *
      * This is a precision limit, not the authorised business rounding stage.
      * `ADR-0006` requires the rounding stage to be a single, separately
      * configured point (C-04); this method does not round, it only bounds the
      * number of retained digits and the caller is accountable for the choice.
+     *
+     * A factor of one CURRENCY is a different question — "how much is three
+     * hundred SAR worth in USD" — and has no answer here, because C-06 is
+     * unresolved. That case must use an explicit exchange rate service, which
+     * does not exist yet.
+     *
+     * @param  string|int  $factor  A dimensionless decimal such as "1.175" or "3"
      */
-    public function multiplyByDecimal(self $factor, int $scale): self
+    public function multiplyByDecimal(string|int $factor, int $scale): self
     {
         $this->assertScale($scale);
 
-        if (preg_match('/^([+-]?)([0-9]+)(?:\.([0-9]+))?$/', trim($factor), $matches) !== 1) {
+        $raw = is_int($factor) ? (string) $factor : trim($factor);
+
+        if (preg_match('/^([+-]?)([0-9]+)(?:\.([0-9]+))?$/', $raw, $matches) !== 1) {
             throw DomainRuleViolation::validationFailed(
                 field: 'factor',
                 message: 'A decimal factor must be a plain decimal string.',
             );
         }
 
+        $sign = $matches[1] === '-' ? '-' : '';
         $canonical = ltrim($matches[2], '0');
         $canonical = $canonical === '' ? '0' : $canonical;
-        if (isset($matches[3]) && $matches[3] !== '') {
-            $canonical .= '.' . $matches[3];
+
+        // Group 3 is present only when the input had a fraction, and the pattern
+        // requires at least one digit in it, so there is no empty case to guard.
+        if (isset($matches[3])) {
+            $canonical .= '.'.$matches[3];
         }
 
-        return new self(
-            self::stripNegativeZero(bcmul($this->amount, $matches[1] . $canonical, $scale)),
+        $factor = $sign.$canonical;
+
+        if (! is_numeric($factor)) {
+            throw DomainRuleViolation::validationFailed(
+                field: 'factor',
+                message: 'A decimal factor must be a plain decimal string.',
+            );
+        }
+
+        return self::decimal(
+            self::stripNegativeZero(bcmul($this->amount, $factor, $scale)),
             $this->currency,
         );
     }
@@ -193,7 +273,7 @@ final class Money implements JsonSerializable, Stringable
             );
         }
 
-        return new self(
+        return self::decimal(
             self::stripNegativeZero(bcdiv($this->amount, $divisor->amount, $scale)),
             $this->currency,
         );
@@ -224,21 +304,46 @@ final class Money implements JsonSerializable, Stringable
         $tailIsSignificant = ltrim(substr($fraction, $scale + 1), '0') !== '';
         $anyRemainder = $nextDigit > 0 || $tailIsSignificant;
 
+        // The digit the increment is applied TO. At scale 0 the last kept digit is
+        // the last digit of the integer part, not of an empty fraction — which is
+        // what made HALF_EVEN round 3.5 down to 3 instead of up to 4, because the
+        // odd/even test had nothing to look at.
+        $lastKept = $scale > 0 ? substr($kept, -1) : substr($integer, -1);
+
         $increment = match ($policy) {
             RoundingPolicy::HalfUp, RoundingPolicy::HalfUpAwayFromZero => $nextDigit >= 5,
             RoundingPolicy::HalfDown => $nextDigit > 5 || ($nextDigit === 5 && $tailIsSignificant),
             RoundingPolicy::HalfEven => $nextDigit > 5
                 || ($nextDigit === 5 && $tailIsSignificant)
-                || ($nextDigit === 5 && $kept !== '' && ((int) substr($kept, -1)) % 2 === 1),
+                || ($nextDigit === 5 && $lastKept !== '' && ((int) $lastKept) % 2 === 1),
             RoundingPolicy::Floor => $anyRemainder && $negative,
             RoundingPolicy::Ceiling => $anyRemainder && ! $negative,
             RoundingPolicy::TowardZero => false,
         };
 
-        $base = $scale > 0 ? $integer . '.' . $kept : $integer;
-        $result = $increment ? bcadd($base, '1', $scale) : $base;
+        $base = $scale > 0 ? $integer.'.'.$kept : $integer;
+        $base = self::numeric($base, 'the rounded amount');
 
-        return new self(self::stripNegativeZero(($negative ? '-' : '') . $result), $this->currency);
+        // The increment is ONE MINOR UNIT at the target scale, not one whole
+        // unit. Adding '1' at scale 2 turns 2.67 into 3.67, which is what the
+        // first version did: every HALF_UP result whose integer part was above 2
+        // was wrong, and 2.675 rounded to two places returned 3.67.
+        $result = $increment
+            ? bcadd($base, self::minorUnit($scale), $scale)
+            : $base;
+
+        return self::decimal(self::stripNegativeZero(($negative ? '-' : '').$result), $this->currency);
+    }
+
+    /**
+     * The smallest representable amount at a scale: `1` at scale 0, `0.1` at
+     * scale 1, `0.01` at scale 2.
+     *
+     * @return numeric-string
+     */
+    private static function minorUnit(int $scale): string
+    {
+        return self::numeric($scale > 0 ? '0.'.str_repeat('0', $scale - 1).'1' : '1', 'a minor unit');
     }
 
     public function negate(): self
@@ -247,17 +352,17 @@ final class Money implements JsonSerializable, Stringable
             return $this;
         }
 
-        return new self(
+        return self::decimal(
             str_starts_with($this->amount, '-')
                 ? substr($this->amount, 1)
-                : '-' . $this->amount,
+                : '-'.$this->amount,
             $this->currency,
         );
     }
 
     public function absolute(): self
     {
-        return new self(ltrim($this->amount, '-'), $this->currency);
+        return self::decimal(ltrim($this->amount, '-'), $this->currency);
     }
 
     /**
@@ -296,6 +401,8 @@ final class Money implements JsonSerializable, Stringable
      *
      * The remainder is the largest share, which keeps the sum exactly equal to
      * the original with no lost and no invented minor units.
+     *
+     * @return list<self>
      */
     public function allocate(int $parts): array
     {
@@ -318,7 +425,7 @@ final class Money implements JsonSerializable, Stringable
         $shares = array_fill(0, $parts, $allocated);
         $shares[$parts - 1] = $remainder;
 
-        return $shares;
+        return array_values($shares);
     }
 
     /**
@@ -337,7 +444,7 @@ final class Money implements JsonSerializable, Stringable
 
     public function __toString(): string
     {
-        return $this->amount . ' ' . $this->currency->code;
+        return $this->amount.' '.$this->currency->code;
     }
 
     private function assertSameCurrency(self $other): void
@@ -357,7 +464,7 @@ final class Money implements JsonSerializable, Stringable
         if ($scale < 0 || $scale > self::MAX_SCALE) {
             throw DomainRuleViolation::businessRuleViolation(
                 'MONEY_SCALE_OUT_OF_RANGE',
-                'A monetary scale must be between 0 and ' . self::MAX_SCALE . '.',
+                'A monetary scale must be between 0 and '.self::MAX_SCALE.'.',
             );
         }
     }

@@ -14,8 +14,6 @@ use App\Shared\Audit\AuditRecord;
 use App\Shared\Audit\AuditRecorder;
 use App\Shared\Domain\DomainRuleViolation;
 use App\Shared\Domain\ValidationFailed;
-use App\Shared\Domain\DomainFailure;
-use App\Shared\Domain\ErrorCode;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -45,11 +43,10 @@ final class PropertyService
     public function __construct(
         private readonly AuthorizesRequests $authorization,
         private readonly AuditRecorder $audit,
-    ) {
-    }
+    ) {}
 
     /**
-     * @param array<string, mixed> $settings
+     * @param  array<string, mixed>  $settings
      */
     public function create(
         Actor $actor,
@@ -98,7 +95,7 @@ final class PropertyService
             $settings,
             $correlationId,
         ): Property {
-            $property = new Property();
+            $property = new Property;
             $property->forceFill([
                 'organization_id' => $organizationId,
                 'name' => $name,
@@ -134,8 +131,7 @@ final class PropertyService
     }
 
     /**
-     * @param array<string, mixed> $attributes
-     * @param array<string, mixed> $settings
+     * @param  array<string, mixed>  $attributes
      */
     public function update(
         Actor $actor,
@@ -205,7 +201,7 @@ final class PropertyService
      * Append a new configuration version for a property. The previous ACTIVE
      * version is marked SUPERSEDED and left in place.
      *
-     * @param array<string, mixed> $payload
+     * @param  array<string, mixed>  $payload
      */
     public function recordConfigurationVersion(
         Actor $actor,
@@ -247,7 +243,7 @@ final class PropertyService
                     ->update(['status' => ConfigurationVersion::STATUS_SUPERSEDED]);
             }
 
-            $version = new ConfigurationVersion();
+            $version = new ConfigurationVersion;
             $version->forceFill([
                 'property_id' => $property->id,
                 'config_key' => $configKey,

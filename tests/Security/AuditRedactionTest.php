@@ -100,7 +100,7 @@ final class AuditRedactionTest extends TestCase
             'PUBLIC-VALUE',
             $redacted[$key],
             "[{$key}] contains a sensitive word as a SUBSTRING but is not itself sensitive. "
-            . 'Redacting it destroys real audit data silently.',
+            .'Redacting it destroys real audit data silently.',
         );
     }
 

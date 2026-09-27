@@ -4,9 +4,7 @@ declare(strict_types=1);
 
 namespace App\Modules\Rooms\Contracts;
 
-use App\Modules\Rooms\Domain\AvailabilityStatus;
-use App\Modules\Rooms\Domain\HousekeepingStatus;
-use App\Modules\Rooms\Domain\OccupancyStatus;
+use App\Modules\Identity\Contracts\Actor;
 use App\Shared\Domain\DomainFailure;
 
 /**
@@ -76,7 +74,7 @@ interface RoomStatusPort
      * @throws DomainFailure
      */
     public function markOutOfOrderById(
-        \App\Modules\Identity\Contracts\Actor $actor,
+        Actor $actor,
         string $roomId,
         string $propertyId,
         string $reason,

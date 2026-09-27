@@ -255,7 +255,7 @@ final class RolePermissionMatrixTest extends TestCase
             $this->assertNotEmpty(
                 $permissions,
                 "Role [{$role->value}] holds no permissions. If that is intentional, document it "
-                . 'here; if not, it is missing from RolePermissionMatrix.',
+                .'here; if not, it is missing from RolePermissionMatrix.',
             );
         }
     }
@@ -267,7 +267,7 @@ final class RolePermissionMatrixTest extends TestCase
                 '.',
                 $permission->value,
                 "Permission [{$permission->value}] has no resource.action separator, so action() "
-                . 'cannot classify it and readOnly() would misclassify it as a write.',
+                .'cannot classify it and readOnly() would misclassify it as a write.',
             );
         }
     }
@@ -301,7 +301,7 @@ final class RolePermissionMatrixTest extends TestCase
     // =====================================================================
 
     /**
-     * @param list<Permission> $forbidden
+     * @param  list<Permission>  $forbidden
      */
     private function assertRoleDoesNotHold(Role $role, array $forbidden): void
     {

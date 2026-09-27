@@ -29,7 +29,7 @@ use Throwable;
 final class BusinessRuleViolation extends DomainFailure
 {
     /**
-     * @param array<int, array{field: string, message: string}> $details
+     * @param  array<int, array{field: string, message: string}>  $details
      */
     public function __construct(
         ErrorCode $errorCode,

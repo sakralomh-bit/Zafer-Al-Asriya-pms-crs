@@ -24,8 +24,7 @@ final class RoomStatusContext
         public readonly HousekeepingStatus $housekeeping,
         public readonly AvailabilityStatus $availability,
         public readonly bool $checkOutCompleted = false,
-    ) {
-    }
+    ) {}
 
     /**
      * `docs/STATE-MACHINES.md` §B.1: an occupiable room is one where occupancy

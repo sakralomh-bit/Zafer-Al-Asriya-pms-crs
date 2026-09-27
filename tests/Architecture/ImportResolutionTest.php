@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Tests\Architecture;
 
+use App\Modules\Identity\Models\User;
 use App\Shared\Architecture\PhpSourceScanner;
 use Tests\TestCase;
 
@@ -46,14 +47,14 @@ final class ImportResolutionTest extends TestCase
             preg_match_all('/^\s*use\s+(App\\\\[A-Za-z0-9_\\\\]+)\s*;/m', $source, $matches);
 
             foreach ($matches[1] as $fqcn) {
-                $path = $root . '/' . str_replace('\\', '/', $fqcn) . '.php';
+                $path = $root.'/'.str_replace('\\', '/', $fqcn).'.php';
 
                 if (! is_file($path)) {
                     $unresolved[] = sprintf(
                         '%s imports %s, but %s does not exist.',
                         PhpSourceScanner::relative($file, $root),
                         $fqcn,
-                        str_replace('\\', '/', $fqcn) . '.php',
+                        str_replace('\\', '/', $fqcn).'.php',
                     );
                 }
             }
@@ -62,7 +63,7 @@ final class ImportResolutionTest extends TestCase
         $this->assertSame(
             [],
             $unresolved,
-            "Unresolvable App imports:\n - " . implode("\n - ", $unresolved),
+            "Unresolvable App imports:\n - ".implode("\n - ", $unresolved),
         );
     }
 
@@ -86,7 +87,7 @@ final class ImportResolutionTest extends TestCase
             50,
             $found,
             'The import scanner found suspiciously few App imports. It is probably not matching, '
-            . 'which would make the resolution test pass while checking nothing.',
+            .'which would make the resolution test pass while checking nothing.',
         );
     }
 
@@ -101,7 +102,7 @@ final class ImportResolutionTest extends TestCase
         $model = config('auth.providers.users.model');
 
         $this->assertSame(
-            \App\Modules\Identity\Models\User::class,
+            User::class,
             $model,
             'The web guard must resolve to Identity\Models\User, not the stock App\Models\User.',
         );
@@ -155,7 +156,7 @@ final class ImportResolutionTest extends TestCase
         $this->assertSame(
             [],
             $offenders,
-            "Abstract/interface instantiation:\n - " . implode("\n - ", $offenders),
+            "Abstract/interface instantiation:\n - ".implode("\n - ", $offenders),
         );
     }
 
@@ -247,7 +248,7 @@ final class ImportResolutionTest extends TestCase
         foreach ($matches as $match) {
             $fqcn = $match[1];
             $alias = $match[2] ?? '';
-            $shortName = $alias !== '' ? $alias : substr(strrchr('\\' . $fqcn, '\\'), 1);
+            $shortName = $alias !== '' ? $alias : basename(str_replace('\\', '/', $fqcn));
 
             if ($shortName === $short) {
                 return $fqcn;
@@ -261,7 +262,7 @@ final class ImportResolutionTest extends TestCase
         // every same-namespace instantiation — which is where `DomainFailure`
         // actually lives.
         if (preg_match('/^namespace\s+([A-Za-z0-9_\\\\]+)\s*;/m', $source, $match) === 1) {
-            return $match[1] . '\\' . $short;
+            return $match[1].'\\'.$short;
         }
 
         return $short;
