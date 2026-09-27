@@ -4,7 +4,6 @@
         "bootstrap/cache",
         "storage",
         "node_modules",
-        "public/build",
-        "Zafer-Al-Asriya-pms-crs"
+        "public/build"
     ]
 }

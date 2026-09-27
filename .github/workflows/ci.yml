@@ -57,6 +57,8 @@ jobs:
           --health-interval=10s
           --health-timeout=5s
           --health-retries=12
+        # Allow trigger creation without SUPER privilege (binary logging is enabled)
+        command: ["mysqld", "--log_bin_trust_function_creators=1"]
 
     env:
       APP_ENV: testing
