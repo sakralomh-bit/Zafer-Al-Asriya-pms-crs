@@ -4,7 +4,7 @@
 |---|---|
 | Document | `docs/TASKS.md` |
 | Version | 0.1 |
-| Status | Draft — **no task has been started. No task is complete. No test evidence exists.** |
+| Status | In progress. `T-001`, `T-005`, `T-006` **COMPLETE**. `T-002`, `T-003`, `T-004` **PARTIAL** — implemented in part, with named acceptance criteria still unevidenced. `T-000` and `T-007`–`T-058` **NOT STARTED**. Every figure in §13 was measured by running the command shown. |
 | Related | `docs/PRD.md`, `docs/ARCHITECTURE.md`, `docs/DATA-MODEL.md`, `docs/API-SPEC.md`, `docs/STATE-MACHINES.md`, `docs/TEST-STRATEGY.md` |
 
 ---
@@ -14,23 +14,29 @@
 1. **No giant tasks.** There is no task called "Build PMS", "Build reservations", or "Integrate ZATCA". Every task is small enough to review independently.
 2. **Every task is traceable** to a requirement ID from `docs/PRD.md`.
 3. **Every task has acceptance criteria** and a named test. A task with no acceptance criteria is not Ready.
-4. **A task is never marked complete without acceptance criteria passing and test evidence recorded** (`Prd_Maker.md` §43). No such evidence exists yet.
+4. **A task is never marked complete without acceptance criteria passing and test evidence recorded** (`Prd_Maker.md` §43). Evidence is recorded per task in §13, including the criteria that remain unevidenced and the gates that are currently red.
 5. **Failing tests are never bypassed to obtain a green result.**
 6. **No task is started while a blocking issue in its "Blocked by" row is open.** A task that is not blocked may proceed in parallel.
 7. Phase assignment follows `D-002`.
 
 ### Status legend
 
-`NOT STARTED` — every task in this document. No code exists.
+| Status | Meaning |
+|---|---|
+| `COMPLETE` | Every documented acceptance criterion for the task has measured evidence in §13. |
+| `PARTIAL` | Real code and/or real test evidence exists, but at least one documented acceptance criterion is unevidenced. The unevidenced criteria are named in §13.1 — this status never means "nearly done". |
+| `NOT STARTED` | No production code and no test evidence for the task. An empty module directory is scaffolding, not progress, and is not evidence. |
+
+A task moves to `COMPLETE` only on measured evidence, never on intent, and never on the number of files that exist. Where a task is `PARTIAL` because a criterion has no test, that is stated as a gap rather than as progress toward one.
 
 ---
 
 ## 1. Phase 0 — Blockers, approval, foundation
 
-| ID | Title | Blocked by |
-|---|---|---|
-| `T-000` | Resolve the six blockers (`B-01`…`B-06`) | **PM action — the highest-priority item in this document** |
-| `T-001` | Scaffold the application, enforce the no-float guard, and stand up CI | `B-03` (blocks only the IaC portion) |
+| ID | Title | Blocked by | Status |
+|---|---|---|---|
+| `T-000` | Resolve the six blockers (`B-01`…`B-06`) | **PM action — the highest-priority item in this document** | `NOT STARTED` |
+| `T-001` | Scaffold the application, enforce the no-float guard, and stand up CI | `B-03` (blocks only the IaC portion) | `COMPLETE` (see §13.2 for the two red gates) |
 
 ---
 
@@ -38,6 +44,8 @@
 
 ```text
 TASK-ID:            T-000
+Status:             NOT STARTED — PM and specialist action, not engineering.
+                    Still the highest-priority item in this document.
 Title:              Resolve blocking and critical issues before implementation
 Purpose:            Six BLOCKER and ten CRITICAL issues prevent a RED -> AMBER
                     transition and gate most of Phase A. This task is a PM and
@@ -90,6 +98,8 @@ Risks:              RISK-004 — the organization may have a ZATCA compliance
 
 ```text
 TASK-ID:            T-001
+Status:             COMPLETE — all seven criteria evidenced. Evidence and the
+                    two currently-red repository gates: §13.1.1 and §13.2.
 Title:              Scaffold the modular monolith with correctness guardrails and CI
 Purpose:            Establish the stack (D-006), the money-representation guard
                     (ADR-0006), and the pipeline every later task depends on.
@@ -138,13 +148,13 @@ Risks:              Choosing tooling too early is difficult to reverse — mitig
 
 ## 2. Phase A1 — Master data and access control
 
-| ID | Title | Blocked by |
-|---|---|---|
-| `T-002` | Organization, legal entity, and property master data | `T-001` |
-| `T-003` | Identity, roles, permissions, and property scope | `T-002` |
-| `T-004` | Authentication, session security, MFA, step-up, auth audit | `T-003` |
-| `T-005` | Room types, physical rooms, room status machine | `T-002` |
-| `T-006` | Housekeeping tasks and out-of-order handling | `T-005` |
+| ID | Title | Blocked by | Status |
+|---|---|---|---|
+| `T-002` | Organization, legal entity, and property master data | `T-001` | `PARTIAL` |
+| `T-003` | Identity, roles, permissions, and property scope | `T-002` | `PARTIAL` |
+| `T-004` | Authentication, session security, MFA, step-up, auth audit | `T-003` | `PARTIAL` — not complete |
+| `T-005` | Room types, physical rooms, room status machine | `T-002` | `COMPLETE` |
+| `T-006` | Housekeeping tasks and out-of-order handling | `T-005` | `COMPLETE` |
 
 ---
 
@@ -152,6 +162,8 @@ Risks:              Choosing tooling too early is difficult to reverse — mitig
 
 ```text
 TASK-ID:            T-002
+Status:             PARTIAL — the model, migration, and service layer exist, but
+                    AC-T-002-01 and AC-T-002-04 have no test. §13.1.2.
 Title:              Create the tenancy root: organization, legal entity, property
 Purpose:            Every property-scoped table hangs off Property. This is the
                     root of the D-001 hierarchy and the future-SaaS seam
@@ -190,6 +202,9 @@ Risks:              Currency and timezone fields will change once C-06 is
 
 ```text
 TASK-ID:            T-003
+Status:             PARTIAL — the authorization engine and its tests exist, but
+                    AC-T-003-01, AC-T-003-05, and AC-T-003-07 are unevidenced.
+                    §13.1.3.
 Title:              Implement role plus property-scope authorization
 Purpose:            Property data isolation (D-001) is the authorization
                     backbone. It must exist before any operational module,
@@ -236,6 +251,11 @@ Risks:              An endpoint added later without a scope check is the
 
 ```text
 TASK-ID:            T-004
+Status:             PARTIAL — NOT COMPLETE. Code exists in
+                    app/Modules/Identity/Auth/ and is unverified: no test
+                    exercises it, and the repository's PHP static-analysis and
+                    PHP lint gates currently fail on those files (§13.2). The
+                    values below stay unresolved. §13.1.4.
 Title:              Authenticate users and protect sensitive operations
 Purpose:            Every audited action in the system needs an attributable
                     actor. Authentication is also where the step-up mechanism
@@ -282,6 +302,7 @@ Risks:              SEC-007 and SEC-008 are undefined, so this task is blocked
 
 ```text
 TASK-ID:            T-005
+Status:             COMPLETE — all six criteria evidenced. §13.1.5.
 Title:              Room master data and the three-axis room status machine
 Purpose:            Room status gates check-in and sellability, so it precedes
                     both inventory allocation and housekeeping.
@@ -319,6 +340,7 @@ Risks:              A single-status model is the classic PMS contradiction
 
 ```text
 TASK-ID:            T-006
+Status:             COMPLETE — all five criteria evidenced. §13.1.6.
 Title:              Housekeeping task lifecycle and room availability blocking
 Purpose:            Housekeeping determines which rooms are actually sellable,
                     and out-of-order rooms are how inventory is withdrawn
@@ -1551,6 +1573,9 @@ Public API authentication mechanism is **`TBD`** and must not be assumed.
 | Phase A tasks | 38 (`T-000`–`T-037`) |
 | Phase B tasks | 8 (`T-038`–`T-045`) |
 | Phase C tasks | 13 (`T-046`–`T-058`) |
+| **`COMPLETE`** | 3 — `T-001`, `T-005`, `T-006` |
+| **`PARTIAL`** | 3 — `T-002`, `T-003`, `T-004` |
+| **`NOT STARTED`** | 53 — `T-000`, `T-007`–`T-058` |
 | **Not blocked by any issue** | `T-001` (except IaC), `T-002`, `T-003`, `T-005`, `T-006` |
 | Blocked by `B-01` | `T-023`, `T-035` |
 | Blocked by `B-02` | `T-023`, `T-024`, `T-035` |
@@ -1575,23 +1600,186 @@ Public API authentication mechanism is **`TBD`** and must not be assumed.
 
 ## 12. First 10 development tasks (summary)
 
-| # | ID | Title | Blocked by |
-|---|---|---|---|
-| 1 | `T-000` | Resolve the six blockers | PM action — **start immediately** |
-| 2 | `T-001` | Scaffold, no-float guard, CI | — |
-| 3 | `T-002` | Organization, legal entity, property master data | `T-001` |
-| 4 | `T-003` | Roles, permissions, property scope | `T-002` |
-| 5 | `T-004` | Authentication, sessions, MFA, step-up | `T-003` + `SEC-007`/`SEC-008` values |
-| 6 | `T-005` | Room types, rooms, status machine | `T-002` |
-| 7 | `T-006` | Housekeeping and out-of-order | `T-005` |
-| 8 | `T-007` | **Atomic allocation + concurrency gate** | `T-005`, `T-003` |
-| 9 | `T-008` | Reservation lifecycle | `T-007` |
-| 10 | `T-009` | Folio and immutable ledger | `T-008` + `C-04` for the rounding policy |
+| # | ID | Title | Blocked by | Status |
+|---|---|---|---|---|
+| 1 | `T-000` | Resolve the six blockers | PM action — **start immediately** | `NOT STARTED` |
+| 2 | `T-001` | Scaffold, no-float guard, CI | — | `COMPLETE` |
+| 3 | `T-002` | Organization, legal entity, property master data | `T-001` | `PARTIAL` |
+| 4 | `T-003` | Roles, permissions, property scope | `T-002` | `PARTIAL` |
+| 5 | `T-004` | Authentication, sessions, MFA, step-up | `T-003` + `SEC-007`/`SEC-008` values | `PARTIAL` |
+| 6 | `T-005` | Room types, rooms, status machine | `T-002` | `COMPLETE` |
+| 7 | `T-006` | Housekeeping and out-of-order | `T-005` | `COMPLETE` |
+| 8 | `T-007` | **Atomic allocation + concurrency gate** | `T-005`, `T-003` | `NOT STARTED` |
+| 9 | `T-008` | Reservation lifecycle | `T-007` | `NOT STARTED` |
+| 10 | `T-009` | Folio and immutable ledger | `T-008` + `C-04` for the rounding policy | `NOT STARTED` |
 
 ## 13. Status
 
-**No task has been started. No task is complete. No acceptance criterion has been met. No test has been executed. No test evidence exists.**
+**Corrected 2026-09-27 against the repository at commit `47ee5bb` (working tree clean).** The previous text of this section stated that no task had been started, no criterion met, and no evidence existed. That was true when the document set was first written and is now false. It is replaced by measured evidence below.
 
-Per `Prd_Maker.md` §43, no task may be marked Done without code complete, review complete, automated tests complete, acceptance criteria passing, security checks passing, observability present, audit behaviour present, documentation updated, rollback assessed, production configuration verified, and a runbook available. **None of these has occurred for any task in this document.**
+Per §0 rule 4, a task is `COMPLETE` only where every documented acceptance criterion has measured evidence. A criterion with no evidence is named as unevidenced and is NOT counted as progress. No coverage percentage, benchmark, performance figure, compliance claim, or security claim appears anywhere in this section, because none has been measured.
 
-The project is **RED — not ready for development** (`docs/PRD.md` §46).
+### 13.0 Measured repository evidence
+
+Every row is the output of the command shown, run on 2026-09-27 against the tree described above.
+
+| Check | Command | Result |
+|---|---|---|
+| Test suite | `php artisan test` | **PASS** — 205 tests, 702 assertions |
+| Guard — strict types | `php artisan zafer:guard-strict-types` | **PASS** |
+| Guard — no float in money paths | `php artisan zafer:guard-money` | **PASS** |
+| Guard — module boundaries | `php artisan zafer:guard-modules` | **PASS** — 14 modules present, no cross-module imports outside `Contracts` |
+| Guard — prohibited schema | `php artisan zafer:guard-prohibited-schema` | **PASS** — 22 tables inspected |
+| PHP static analysis | `php vendor/bin/phpstan analyse` | **FAIL** — 9 errors (§13.2) |
+| PHP lint | `php vendor/bin/pint --test` | **FAIL** — 2 files (§13.2) |
+| CSS lint | `npm run lint:css` | **PASS** |
+| Frontend build | `npm run build` | **PASS** |
+| npm dependency scan | `npm audit --audit-level=high` | **PASS** — 0 vulnerabilities |
+| PHP dependency scan | `composer audit` | **NOT RUN** — no Composer CLI in the environment used for this reconciliation |
+| Secret scan | `gitleaks` (`ci.yml` job `secrets`) | **NOT RUN** — CI-only; no run result is recorded in this repository |
+| CI pipeline | `.github/workflows/ci.yml` | **Defined**, not observed — no CI run result is recorded in this repository |
+
+No coverage measurement, no benchmark, no load test, and no penetration test has been performed. `T-034` and `T-033` remain unstarted, and nothing in this section substitutes for them.
+
+### 13.1 Per-task evidence
+
+#### 13.1.1 `T-001` — `COMPLETE`
+
+| Criterion | Evidence |
+|---|---|
+| `AC-T-001-01` | Application boots and `php artisan test` runs: 205 tests, 702 assertions. `ci.yml` defines the same run. No CI run result is recorded in-repo. |
+| `AC-T-001-02` | `app/Console/Commands/GuardNoFloatInMoneyPaths.php`, wired into CI. Negative cases proven in `tests/Architecture/GuardSelfTest.php`: float type hint, float literal, double cast, `number_format`, `parse_float`, and a `FLOAT` column type. Guard passes on the clean repository. |
+| `AC-T-001-03` | `app/Shared/Money/Money.php`; `tests/Unit/MoneyTest.php` proves `0.1 + 0.2` exactly, a 3-decimal division at a caller-chosen scale, integer multiplication preserving scale, float entry refused, and a global-scale change unable to alter a result. |
+| `AC-T-001-04` | `ci.yml` runs PHPStan, Pint, the test suite, `composer audit`, `npm audit`, and `gitleaks`, each as a command that fails the build on failure. **The pipeline exists; the tree is not currently green** — see §13.2. |
+| `AC-T-001-05` | `app/Console/Commands/GuardModuleBoundaries.php`: 14 module directories present, cross-module `Models`/`Services` imports rejected, `Contracts` imports allowed. Negative cases in `GuardSelfTest`. |
+| `AC-T-001-06` | `.stylelintrc.json` plus `npm run lint:css` PASS; `npm run build` PASS. |
+| `AC-T-001-07` | No coverage percentage, benchmark, or performance figure is claimed in this document set. The claim is made checkable rather than asserted: §13.0 lists every command that produced a figure, and §13.3 lists what was not run. |
+
+`T-001` is complete in its own scope. It is recorded here together with §13.2 so that a reader cannot mistake "this task's deliverables are present" for "the repository passes its own pipeline". It does not.
+
+#### 13.1.2 `T-002` — `PARTIAL`
+
+Implemented: `app/Modules/Organization/` (7 files) and migrations `2026_09_27_000002_create_organization_tables.php`, `2026_09_27_000003_create_property_tables.php`, each carrying its own `AC-T-002-xx` references.
+
+| Criterion | Evidence |
+|---|---|
+| `AC-T-002-01` | **UNEVIDENCED.** `PropertyService` exists and carries the reference, but no test calls it. Property creation with timezone validation, versioned configuration, and audit is not exercised. |
+| `AC-T-002-02` | `SchemaConventionTest` asserts `properties.organization_id` exists; `AuthorizationTest` builds ten properties under one organization. Every other property-scoped table carrying `property_id` is asserted by `SchemaConventionTest::test_every_property_scoped_table_carries_a_property_id`. |
+| `AC-T-002-03` | `legal_entities` is created in migration `000002` and modelled by `app/Modules/Organization/Models/LegalEntity.php`. The commercial-registration and VAT-registration VALUES remain unknown, per `B-06` and `docs/BLOCKER-STATUS.md`. |
+| `AC-T-002-04` | **UNEVIDENCED.** `ConfigurationVersion` and the audit path exist; no test exercises validation, permission control, versioning, restoration, or audit emission. |
+| `AC-T-002-05` | The `organization_id` seam is asserted structurally by `SchemaConventionTest`. The criterion's behavioural half — that it can be added without changing business logic — is not separately tested. |
+
+This task's own `Tests:` line requires model/migration tests, scope-resolution tests, configuration-authorization tests, and audit-emission tests. Only the schema and scope halves exist. `T-002` therefore stays `PARTIAL` until `AC-T-002-01` and `AC-T-002-04` are evidenced.
+
+#### 13.1.3 `T-003` — `PARTIAL`
+
+Implemented and tested: `app/Modules/Identity/` (22 files) and `tests/Security/AuthorizationTest.php` (25 tests) plus `tests/Security/RolePermissionMatrixTest.php` (19 tests), all passing within the 205.
+
+| Criterion | Evidence |
+|---|---|
+| `AC-T-003-01` | **UNEVIDENCED IN FULL.** The generated 12-role × 10-property breakout does not exist. `test_a_property_with_no_grant_is_denied_with_an_explicit_code` proves the denial, and `test_group_manager_multi_property_reach_is_ten_explicit_grants` proves ten explicit grant rows across ten properties. What is missing is the criterion's explicit demand: every one of the 12 roles × all 10 properties, not a representative sample. |
+| `AC-T-003-02` | `AuthorizationTest::test_a_property_with_no_grant_is_denied_with_an_explicit_code` asserts `PROPERTY_SCOPE_DENIED`, not an empty result; `..._does_not_disclose_whether_the_property_exists` asserts the message leaks nothing. |
+| `AC-T-003-03` | `test_group_manager_multi_property_reach_is_ten_explicit_grants` (10 rows, asserted as rows) and `test_there_is_no_superuser_or_bypass_column` (asserts the absence of seven candidate bypass columns). |
+| `AC-T-003-04` | `test_a_user_cannot_grant_themselves_a_property` asserts the refusal, that no row was created, and that one `SCOPE_SELF_GRANT_DENIED` audit row exists. |
+| `AC-T-003-05` | **PARTIAL.** Enforcement is proven at the service boundary. There is no HTTP or route surface in the repository — `app/Http/Controllers/` contains only the framework base controller — so "a request bypassing the client is denied identically" has not been exercised end to end. |
+| `AC-T-003-06` | `RolePermissionMatrixTest`, including each negative case named in the criterion (Finance cannot check in, Auditor cannot write, Housekeeping cannot read identity/folio data) plus completeness assertions over `Role::cases()` and `Permission::cases()`. |
+| `AC-T-003-07` | **UNEVIDENCED.** No test asserts the absence of an impersonation endpoint, and there is no route layer to assert against. The absence of the capability is true in the code as written; it is not a recorded test result. |
+
+#### 13.1.4 `T-004` — `PARTIAL`, and NOT COMPLETE
+
+**This task is not complete and was not advanced by the reconciliation that produced this section.** No code was written for it, no test was written for it, and no value below was resolved.
+
+Unverified implementation exists in `app/Modules/Identity/Auth/`: `SecurityPolicy.php`, `AuthenticationService.php`, `SessionSecurity.php`, `SessionRevoker.php`, `AuthenticationRateLimiter.php`, `SessionRevocationUnsupported.php`, `AuthenticationFailed.php`, `SecurityPolicyUnresolved.php`, `StepUpRequired.php`.
+
+- **No test file references any of it.** The whole of the 205 passing tests is blind to this directory.
+- **All 9 PHPStan errors and both Pint failures are in this directory** (§13.2). This is the single reason the repository is not green.
+- **There is no HTTP surface**, so `AC-T-004-07` (CSRF on cookie-authenticated state-changing requests), `AC-T-004-08` (security headers on all responses), and `AC-T-004-09` (no stack trace, SQL, internal hostname, or secret in any error or log) have nothing to be enforced on and nothing to be asserted against.
+
+| Criterion | State |
+|---|---|
+| `AC-T-004-01` | **UNEVIDENCED** — audit calls exist in code; no test asserts the events. |
+| `AC-T-004-02` | **UNRESOLVED BY DESIGN** — `SEC-007`. The algorithm is TBD and must not be chosen implicitly. |
+| `AC-T-004-03` | **UNRESOLVED BY DESIGN** — `SEC-008`. Idle and absolute values are TBD. |
+| `AC-T-004-04` | **UNEVIDENCED** — `SessionRevoker` exists; no test asserts revocation on a role or scope change. |
+| `AC-T-004-05` | **UNRESOLVED BY DESIGN** — the step-up freshness window is TBD and the mechanism that satisfies a step-up is unspecified. |
+| `AC-T-004-06` | **UNEVIDENCED** — the limiter exists; no test asserts throttling or lockout. |
+| `AC-T-004-07` | **UNEVIDENCED** — no HTTP surface. |
+| `AC-T-004-08` | **UNRESOLVED BY DESIGN** — the header set is unspecified. |
+| `AC-T-004-09` | **UNEVIDENCED** — no HTTP surface and no test. |
+
+Constraints that remain in force and are **not** resolved by this section:
+
+- `SEC-007` password algorithm, `SEC-008` session idle and absolute values, and `B-05` rate/lockout values stay TBD.
+- The security-header set and the step-up freshness window stay unspecified.
+- The MFA mechanism is unspecified. No MFA mechanism is implemented, and no `MFA_*` audit action has been added.
+- Missing policy values are `null` and fail closed through `SecurityPolicyUnresolved` with `SERVICE_UNAVAILABLE`. No value is defaulted.
+- No `users.session_version` was invented. Revocation uses the documented `sessions` table.
+- Cookie sessions with CSRF protection remain the intended architecture; the values remain unset.
+- Login must not reveal account existence: unknown user, wrong password, and a non-`ACTIVE` account all return `AUTH_FAILED` and share dummy-hash behaviour.
+- Laravel's stock `SESSION_LIFETIME=120` has **not** been adopted as a session lifetime.
+
+#### 13.1.5 `T-005` — `COMPLETE`
+
+`tests/Feature/RoomStatusMachineTest.php` (20 tests) and the room-status rules in `tests/Architecture/ProhibitedSchemaGuardTest.php` and `tests/Security/AuditRedactionTest.php`, all passing within the 205.
+
+| Criterion | Evidence |
+|---|---|
+| `AC-T-005-01` | `test_room_status_is_three_columns_and_not_one`; the guard rejects both a unified `status` column and a room missing an axis. |
+| `AC-T-005-02` | `test_the_machine_encodes_every_documented_transition` and `test_no_transition_crosses_axes`. |
+| `AC-T-005-03` | `test_an_invalid_transition_returns_room_state_invalid`, `test_a_dirty_room_cannot_skip_straight_to_inspected`, `test_an_out_of_order_room_reports_room_out_of_order`. |
+| `AC-T-005-04` | `test_a_room_is_occupiable_only_when_all_three_axes_allow_it`. |
+| `AC-T-005-05` | `test_a_status_change_outside_the_callers_scope_is_denied`, and `test_the_scope_is_asserted_before_the_transition_is_validated` (ordering). |
+| `AC-T-005-06` | `test_every_status_change_is_audited_with_before_and_after` and `test_a_refused_transition_is_audited_too`; redaction proven in `AuditRedactionTest`. |
+
+#### 13.1.6 `T-006` — `COMPLETE`
+
+`tests/Feature/HousekeepingTaskTest.php`, 21 tests, passing within the 205.
+
+| Criterion | Evidence |
+|---|---|
+| `AC-T-006-01` | `test_a_task_moves_created_assigned_in_progress_completed_inspected`, `test_a_failed_reinspection_sends_the_task_to_rework`, `test_an_inspected_task_can_still_require_rework`, `test_rework_before_inspection_leaves_the_room_clean`, `test_a_terminal_task_cannot_change_state`. |
+| `AC-T-006-02` | `test_completing_a_task_moves_only_the_housekeeping_axis` and `test_inspecting_a_task_moves_only_the_housekeeping_axis`. |
+| `AC-T-006-03` | `test_raising_out_of_order_makes_the_room_non_sellable_immediately`, `test_out_of_order_is_audited_with_its_reason`, `test_out_of_order_requires_a_reason`, `test_returning_to_service_restores_sellability`. |
+| `AC-T-006-04` | `test_the_task_service_exposes_no_guest_or_financial_data`, `test_the_task_table_has_no_guest_or_financial_column`, `test_housekeeping_cannot_reach_financial_actions_in_its_own_property`, and the identity/folio cases in `RolePermissionMatrixTest`. |
+| `AC-T-006-05` | `test_a_dirty_room_is_not_occupiable`. |
+
+#### 13.1.7 `T-007`–`T-058` — `NOT STARTED`
+
+No production code exists for any task from `T-007` onward. `app/Modules/Inventory` does not exist; the modules `Financials`, `Payments`, `Reservations`, `FrontDesk`, `Guests`, `Tax`, `NightAudit`, `Crs`, `ChannelManager`, and `Pos` each contain exactly one file, `MODULE.md`, which is a placeholder and not an implementation. The 14 module directories and the guard that asserts them are `T-001` scaffolding and are **not** evidence of progress on any downstream task.
+
+`T-000` is likewise `NOT STARTED`: it is a PM and specialist action, and no dated, sourced sign-off exists for `B-01`…`B-06` or `C-01`…`C-10`.
+
+### 13.2 Repository gates that are currently RED
+
+Two of the gates this repository defines are failing today. This is recorded rather than omitted, because a status section that lists the passing checks and hides the failing ones is worse than no status section.
+
+| Gate | Command | Failure |
+|---|---|---|
+| PHP static analysis | `php vendor/bin/phpstan analyse` | 9 errors |
+| PHP lint | `php vendor/bin/pint --test` | 2 files |
+
+Every one of these failures is in `app/Modules/Identity/Auth/` — `AuthenticationService.php`, `SecurityPolicy.php`, and `SessionSecurity.php`. **All of it is unverified `T-004` code** (§13.1.4). No `T-001`–`T-003`, `T-005`, or `T-006` file is implicated, which is why those tasks are not downgraded by it, and why `T-001`'s own deliverables are recorded as complete.
+
+The reported errors are: a `@throws` union that PHPStan cannot resolve to a `Throwable`; two calls to `Hasher::verify()` and one to `Hash::manager()` that the contract type does not declare; a return type mismatch between `AbstractHasher` and `Hasher`; a `@return` docblock on a `void` method; a comparison against an empty array that is always false; a call to a non-existent `setOptions()`; and a `login()` argument type mismatch in `SessionSecurity`.
+
+**Consequence:** CI would fail on `main` today. The repository is not release-green, and this document must not be read as saying it is. The fix belongs to a `T-004` session; it was deliberately not made here, because this reconciliation is documentation-only and `T-004` is not authorized to advance.
+
+### 13.3 What was NOT measured
+
+Stated explicitly so that no reader infers more than the evidence supports:
+
+- No code-coverage figure of any kind, for any task.
+- No benchmark, latency percentile, throughput, or capacity number. `T-034` is unstarted and blocked on `B-05`.
+- No CI run result. The workflow is defined; its outcome on any host is not recorded here.
+- No `composer audit` result (no Composer CLI available) and no `gitleaks` result (CI-only).
+- No penetration test, SAST report, or external security review. `T-033` is unstarted and blocked on `C-10`.
+- No compliance position of any kind. `T-035` is unstarted and blocked on `B-01`, `B-02`, and `C-10`.
+- No performance, correctness, or resilience claim about any task from `T-007` onward.
+
+### 13.4 Blockers, critical decisions, and the quality gate — unchanged
+
+`B-01`…`B-06` and `C-01`…`C-10` are **unchanged and none is resolved**. Their authoritative status is `docs/BLOCKER-STATUS.md`; this section does not restate, reinterpret, or advance any of them. No value, threshold, algorithm, provider, jurisdiction, or owner has been invented anywhere in this reconciliation.
+
+The dependency graph and the critical path in §11 are unchanged. `T-000` remains the highest-priority item in this document, and the §65 observation stands: the longest chain is gated on decisions (`C-04`, `B-06`, `B-01`, `B-02`), not on code.
+
+The project remains **RED — not ready for development** (`docs/PRD.md` §46). That status is a readiness judgement about the specification and the unanswered questions, not a statement about the foundation code, and it is not affected by the evidence above. `Prd_Maker.md` §43 is also still not satisfied for any task in this document: the tests that exist prove the criteria recorded in §13.1, but no task has a completed review, a named accountable verifier (`C-10`), a verified production configuration, or a runbook. `docs/PRD.md` §43 already records why a Definition of Done with no verifier is not a Definition of Done.
