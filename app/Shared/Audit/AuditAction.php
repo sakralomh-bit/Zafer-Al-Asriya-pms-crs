@@ -67,6 +67,19 @@ enum AuditAction: string
     // Access-control denials (ADR-0014 §3, §7)
     case AuthorizationDenied = 'AUTHORIZATION_DENIED';
 
+    // Authentication, `docs/API-SPEC.md` §3.11. The event NAMES are
+    // transcribed from the audit column of that table, not chosen here:
+    // `AUTH_SUCCEEDED` / `AUTH_FAILED` on login and `AUTH_LOGOUT` on logout.
+    //
+    // `MFA_*` events are deliberately absent. `docs/API-SPEC.md` §3.11 names
+    // them for `/auth/mfa/verify`, but no MFA mechanism is specified anywhere,
+    // so there is no event to record and inventing one would fix an observable
+    // contract to a design that does not exist.
+    case AuthSucceeded = 'AUTH_SUCCEEDED';
+    case AuthFailed = 'AUTH_FAILED';
+    case AuthLogout = 'AUTH_LOGOUT';
+    case StepUpPerformed = 'STEP_UP_PERFORMED';
+
     /**
      * A transition's outcome. `ADR-0016` records the `result` field, so a
      * refused action is auditable as a refusal and not only as a success.
