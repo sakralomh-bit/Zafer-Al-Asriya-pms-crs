@@ -3,11 +3,12 @@
 declare(strict_types=1);
 
 /**
- * The security policy — and the place where four decisions are still OPEN.
+ * The security policy — and the place where the OPEN decisions are visible.
  *
- * This file exists because four values required by T-004 are recorded as
+ * This file exists because the values required by T-004 are recorded as
  * undecided in the governing documents, and "undecided" must be visible in one
- * obvious place rather than guessed at a call site:
+ * obvious place rather than guessed at a call site. The table below lists all
+ * seven groups of keys, not four:
  *
  *   | Config key                          | Decision | Recorded as |
  *   |-------------------------------------|----------|-------------|
@@ -16,7 +17,7 @@ declare(strict_types=1);
  *   | `session.absolute_lifetime_seconds` | `SEC-008`| `SECURITY.md` §12 — owner: Security |
  *   | `authentication_rate_limit.*`       | rate limits | `SECURITY.md` §12 — needs `B-05` |
  *   | `lockout.*`                         | lockout values | `SECURITY.md` §12 — needs `B-05` |
- *   | `step_up.freshness_seconds`         | step-up window | `SECURITY.md` §12 — Security |
+ *   | `step_up.freshness_seconds`         | step-up window | `SEC-008`, undecided — tracked in `docs/SECURITY.md` §6.1 and `docs/TASKS.md` §13.1.4. There is **no** step-up row in `SECURITY.md` §12 |
  *   | `security_headers.*`                | exact header set | `API-SPEC.md` §5 — `TBD` |
  *
  * `docs/API-SPEC.md` §6 lists the first four as "Unresolved before
@@ -112,12 +113,23 @@ return [
     | Step-up freshness window
     |--------------------------------------------------------------------------
     |
-    | `AC-T-004-05` requires step-up on the ADR-0014 §6 operation set. How long
-    | a completed step-up remains valid is a policy value and is TBD. The GATE
-    | is implemented and fails closed; the mechanism that would SATISFY it (an
-    | MFA factor) is deliberately not implemented, because no MFA mechanism is
-    | specified anywhere in the governing documents and choosing one (TOTP,
-    | SMS, email, passkey) would be inventing a security architecture.
+    | `AC-T-004-05` requires step-up on the canonical operation set — the seven
+    | operations enumerated in `docs/SECURITY.md` §6.1. How long a completed
+    | step-up remains valid is a policy value and is TBD.
+    |
+    | NO GATE EXISTS, in either direction. There is no `StepUpGuard`, no
+    | middleware, and no endpoint that consults this value; nothing reads
+    | `step_up.freshness_seconds` at runtime. `StepUpRequired` is a refusal with
+    | no producer. The value is present because the freshness window is a real
+    | decision that has to be made BEFORE the gate is built — building a gate
+    | that compares against an unset window would either refuse every sensitive
+    | operation or silently allow all of them, and choosing between those is
+    | exactly the decision that has not been made.
+    |
+    | The mechanism that would SATISFY a step-up is separately unspecified: no
+    | MFA mechanism is named in any governing document, and choosing one
+    | (TOTP, SMS, email, passkey) would be inventing a security architecture
+    | (`DR-T004-08`, OPEN).
     |
     */
 
@@ -131,15 +143,25 @@ return [
     |--------------------------------------------------------------------------
     |
     | `SEC-009` requires "security headers on all responses"; `API-SPEC.md` §5
-    | marks the exact set `TBD`. `SecurityHeaders` applies an always-safe floor
-    | (see that class) and reads anything stricter from here. `content_security_policy`
-    | is null because a correct CSP must enumerate the origins the built
-    | application actually loads, and those depend on asset hosting that
-    | `B-03` has not chosen.
+    | marks the exact set `TBD`, and `docs/SECURITY.md` §12 carries "Exact
+    | security header set — Security (`TBD`)" as an OPEN decision.
     |
-    | `strict_transport_security` is null because sending HSTS over plain HTTP
-    | is ignored by browsers and sending it before TLS is correct can lock a
-    | developer out of a local environment.
+    | NOTHING SETS THESE HEADERS. There is no `SecurityHeaders` class, no
+    | middleware, and no response pipeline that reads this block; the four keys
+    | below are read by no production code. `SecurityPolicy` exposes typed
+    | accessors for them so that the decision has one place to land, and so
+    | `UnresolvedSecurityPolicyTest` can prove every one is `null` today.
+    |
+    | No "always-safe floor" is applied. A baseline header set is itself a
+    | security decision — it fixes the `Referrer-Policy`, the `Permissions-Policy`
+    | posture, and the CSP origins for the whole application — and the CSP in
+    | particular must enumerate the origins the built application actually
+    | loads, which depend on asset hosting that `B-03` has not chosen.
+    |
+    | `strict_transport_security` is called out because it is the one that
+    | invites an "obvious" default: sending HSTS over plain HTTP is ignored by
+    | browsers, and sending it before TLS is correct can lock a developer out of
+    | a local environment. That is still a deployment decision, not a constant.
     |
     */
 

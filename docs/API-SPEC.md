@@ -339,6 +339,24 @@ Schemas are described structurally here. **Exact field-level schemas are `TBD` a
 
 **No impersonation endpoint exists.** Impersonation is default DENY (`ADR-0014` §6). Adding one requires explicit approval and an audit design.
 
+#### 3.11.1 Canonical step-up operations
+
+Step-up is required for a **closed** set of operations. "Sensitive" is not a judgement call left to each endpoint; it is this list. Anything not on it does not demand re-authentication.
+
+| Operation | Source | Endpoints |
+|---|---|---|
+| Refund a payment | `ADR-0014` §6 (separation of duties) | §3.5 `POST /payments/{id}/refunds` |
+| Post a configuration change | `SEC-006` | §3.2 `POST /properties/{id}/tax-rates` |
+| Grant or revoke a property scope | `ADR-0014` §6 | §3.11 `POST`/`DELETE` `/users/{id}/property-scopes` |
+| Reopen the business date | `ADR-0014` §6 | §3.8 night audit |
+| Export data | `SEC-006` | (export endpoints, not yet specified) |
+| Impersonate another user | `ADR-0014` §6 | **No endpoint exists** — default DENY |
+| Reveal a masked identity document | `ADR-0014` §6 | §3.4 `POST /guests/{id}/identity/reveal` |
+
+**Status: specified, not implemented.** `T-004` built the authentication, session, and rate-limiting foundation only. There is no `StepUpGuard`, no `/api/v1/auth/step-up` route, and no MFA challenge handler in the codebase, so `STEP_UP_PERFORMED` is a **reserved audit action with no emitter**. `STEP_UP_REQUIRED` (403) is likewise reserved. Both are retained deliberately so the vocabulary is fixed before an implementer picks a different one.
+
+Until a step-up mechanism exists, the control these rows describe **does not exist at runtime**, and the endpoints that depend on it are unreachable — no route is registered in this stage. `MFA_*` and `SEC-007` remain unresolved.
+
 ---
 
 ## 4. Webhooks

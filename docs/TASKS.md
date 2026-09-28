@@ -4,7 +4,7 @@
 |---|---|
 | Document | `docs/TASKS.md` |
 | Version | 0.1 |
-| Status | In progress. `T-001`, `T-005`, `T-006` **COMPLETE**. `T-002`, `T-003`, `T-004` **PARTIAL** — implemented in part, with named acceptance criteria still unevidenced. `T-000` and `T-007`–`T-058` **NOT STARTED**. Every figure in §13 was measured by running the command shown. |
+| Status | In progress. `T-001`, `T-005`, `T-006` **COMPLETE**. `T-002`, `T-003`, `T-004` **PARTIAL** — implemented in part, with named acceptance criteria still unevidenced; `T-004` in particular has its session, authentication, rate-limit, and audit mechanisms tested, its scope-change revocation wired and proven, and its error-rendering boundary evidenced, while the authentication HTTP surface, the step-up gate, and the security-header set do not exist. `T-000` and `T-007`–`T-058` **NOT STARTED**. Every figure in §13 was measured by running the command shown. |
 | Related | `docs/PRD.md`, `docs/ARCHITECTURE.md`, `docs/DATA-MODEL.md`, `docs/API-SPEC.md`, `docs/STATE-MACHINES.md`, `docs/TEST-STRATEGY.md` |
 
 ---
@@ -152,7 +152,7 @@ Risks:              Choosing tooling too early is difficult to reverse — mitig
 |---|---|---|---|
 | `T-002` | Organization, legal entity, and property master data | `T-001` | `PARTIAL` |
 | `T-003` | Identity, roles, permissions, and property scope | `T-002` | `PARTIAL` |
-| `T-004` | Authentication, session security, MFA, step-up, auth audit | `T-003` | `PARTIAL` — not complete |
+| `T-004` | Authentication, session security, MFA, step-up, auth audit | `T-003` | `PARTIAL` — mechanisms tested, scope-change revocation wired, error rendering evidenced; blocked on `SEC-007`/`SEC-008`/`B-05` values, MFA, step-up gate, security headers, and the auth HTTP surface (§13.1.4) |
 | `T-005` | Room types, physical rooms, room status machine | `T-002` | `COMPLETE` |
 | `T-006` | Housekeeping tasks and out-of-order handling | `T-005` | `COMPLETE` |
 
@@ -251,11 +251,15 @@ Risks:              An endpoint added later without a scope check is the
 
 ```text
 TASK-ID:            T-004
-Status:             PARTIAL — NOT COMPLETE. Code exists in
-                    app/Modules/Identity/Auth/ and is unverified: no test
-                    exercises it, and the repository's PHP static-analysis and
-                    PHP lint gates currently fail on those files (§13.2). The
-                    values below stay unresolved. §13.1.4.
+Status:             PARTIAL — NOT COMPLETE. Advanced by a Stage 1/2
+                    session: the code in app/Modules/Identity/Auth/ is now
+                    tested by 73 tests in 6 files, and the PHP
+                    static-analysis and PHP lint gates that were failing on
+                    those files now pass. Still absent: any HTTP surface, the
+                    step-up gate, MFA, and the write path that would trigger
+                    session revocation. The values below stay unresolved, and
+                    AC-T-004-07/08/09 remain unevidenced for want of a request
+                    to assert against. §13.1.4.
 Title:              Authenticate users and protect sensitive operations
 Purpose:            Every audited action in the system needs an attributable
                     actor. Authentication is also where the step-up mechanism
@@ -1625,19 +1629,21 @@ Every row is the output of the command shown, run on 2026-09-27 against the tree
 
 | Check | Command | Result |
 |---|---|---|
-| Test suite | `php artisan test` | **PASS** — 205 tests, 702 assertions |
+| Test suite | `php artisan test` | **PASS** — 305 tests, 949 assertions |
 | Guard — strict types | `php artisan zafer:guard-strict-types` | **PASS** |
 | Guard — no float in money paths | `php artisan zafer:guard-money` | **PASS** |
 | Guard — module boundaries | `php artisan zafer:guard-modules` | **PASS** — 14 modules present, no cross-module imports outside `Contracts` |
 | Guard — prohibited schema | `php artisan zafer:guard-prohibited-schema` | **PASS** — 22 tables inspected |
-| PHP static analysis | `php vendor/bin/phpstan analyse` | **FAIL** — 9 errors (§13.2) |
-| PHP lint | `php vendor/bin/pint --test` | **FAIL** — 2 files (§13.2) |
+| PHP static analysis | `php vendor/bin/phpstan analyse` | **PASS** — 0 errors |
+| PHP lint | `php vendor/bin/pint --test` | **PASS** |
 | CSS lint | `npm run lint:css` | **PASS** |
 | Frontend build | `npm run build` | **PASS** |
 | npm dependency scan | `npm audit --audit-level=high` | **PASS** — 0 vulnerabilities |
 | PHP dependency scan | `composer audit` | **NOT RUN** — no Composer CLI in the environment used for this reconciliation |
 | Secret scan | `gitleaks` (`ci.yml` job `secrets`) | **NOT RUN** — CI-only; no run result is recorded in this repository |
 | CI pipeline | `.github/workflows/ci.yml` | **Defined**, not observed — no CI run result is recorded in this repository |
+
+The suite grew from 205 tests / 702 assertions to **305 / 949** through `T-004` (100 new tests across 7 files). `phpstan` and `pint` were **FAIL** when this table was first written and are now **PASS**; §13.2 records what they were and why. The CSS, build, and npm rows were not re-run by the `T-004` session — no frontend file was touched — so they carry forward from the earlier measurement and are marked as such by that omission.
 
 No coverage measurement, no benchmark, no load test, and no penetration test has been performed. `T-034` and `T-033` remain unstarted, and nothing in this section substitutes for them.
 
@@ -1647,7 +1653,7 @@ No coverage measurement, no benchmark, no load test, and no penetration test has
 
 | Criterion | Evidence |
 |---|---|
-| `AC-T-001-01` | Application boots and `php artisan test` runs: 205 tests, 702 assertions. `ci.yml` defines the same run. No CI run result is recorded in-repo. |
+| `AC-T-001-01` | Application boots and `php artisan test` runs: 305 tests, 949 assertions. `ci.yml` defines the same run. No CI run result is recorded in-repo. |
 | `AC-T-001-02` | `app/Console/Commands/GuardNoFloatInMoneyPaths.php`, wired into CI. Negative cases proven in `tests/Architecture/GuardSelfTest.php`: float type hint, float literal, double cast, `number_format`, `parse_float`, and a `FLOAT` column type. Guard passes on the clean repository. |
 | `AC-T-001-03` | `app/Shared/Money/Money.php`; `tests/Unit/MoneyTest.php` proves `0.1 + 0.2` exactly, a 3-decimal division at a caller-chosen scale, integer multiplication preserving scale, float entry refused, and a global-scale change unable to alter a result. |
 | `AC-T-001-04` | `ci.yml` runs PHPStan, Pint, the test suite, `composer audit`, `npm audit`, and `gitleaks`, each as a command that fails the build on failure. **The pipeline exists; the tree is not currently green** — see §13.2. |
@@ -1673,7 +1679,7 @@ This task's own `Tests:` line requires model/migration tests, scope-resolution t
 
 #### 13.1.3 `T-003` — `PARTIAL`
 
-Implemented and tested: `app/Modules/Identity/` (22 files) and `tests/Security/AuthorizationTest.php` (25 tests) plus `tests/Security/RolePermissionMatrixTest.php` (19 tests), all passing within the 205.
+Implemented and tested: `app/Modules/Identity/` (22 files) and `tests/Security/AuthorizationTest.php` (25 tests) plus `tests/Security/RolePermissionMatrixTest.php` (19 tests), all passing within the 305.
 
 | Criterion | Evidence |
 |---|---|
@@ -1687,40 +1693,69 @@ Implemented and tested: `app/Modules/Identity/` (22 files) and `tests/Security/A
 
 #### 13.1.4 `T-004` — `PARTIAL`, and NOT COMPLETE
 
-**This task is not complete and was not advanced by the reconciliation that produced this section.** No code was written for it, no test was written for it, and no value below was resolved.
+**Advanced by a `T-004` session scoped to Stage 1 (code correctness) and Stage 2 (tests and documentation) only.** 73 new tests were added across 6 new files. No value was resolved, no route was added, and no mechanism specified as `TBD` was chosen.
 
-Unverified implementation exists in `app/Modules/Identity/Auth/`: `SecurityPolicy.php`, `AuthenticationService.php`, `SessionSecurity.php`, `SessionRevoker.php`, `AuthenticationRateLimiter.php`, `SessionRevocationUnsupported.php`, `AuthenticationFailed.php`, `SecurityPolicyUnresolved.php`, `StepUpRequired.php`.
+Implementation under test: `SecurityPolicy.php`, `AuthenticationService.php`, `SessionSecurity.php`, `SessionRevoker.php`, `AuthenticationRateLimiter.php`, `SessionRevocationUnsupported.php`, `AuthenticationFailed.php`, `SecurityPolicyUnresolved.php`, `StepUpRequired.php`.
 
-- **No test file references any of it.** The whole of the 205 passing tests is blind to this directory.
-- **All 9 PHPStan errors and both Pint failures are in this directory** (§13.2). This is the single reason the repository is not green.
-- **There is no HTTP surface**, so `AC-T-004-07` (CSRF on cookie-authenticated state-changing requests), `AC-T-004-08` (security headers on all responses), and `AC-T-004-09` (no stack trace, SQL, internal hostname, or secret in any error or log) have nothing to be enforced on and nothing to be asserted against.
+New evidence, 73 tests in `tests/Security/`:
+
+| File | Tests | Covers |
+|---|---|---|
+| `AuthenticationTest.php` | 15 | Login, uniform refusal, hashing cost, no-credential audit |
+| `SessionSecurityTest.php` | 19 | Session lifecycle, both lifetimes, revocation, CSRF rotation |
+| `AuthenticationRateLimiterTest.php` | 13 | Ceiling, lockout, keying, fail-closed on `B-05` |
+| `UnresolvedSecurityPolicyTest.php` | 13 | Every shipped security value still refuses; nothing defaulted |
+| `AuthAuditTest.php` | 9 | The four authentication events, correlation, redaction |
+| `AuthenticatedAuthorizationTest.php` | 4 | Authentication confers no scope and disturbs no role |
+
+Test support is TEST-ONLY and cannot leak into production: `tests/Support/ResolvesSecurityPolicy.php` binds explicit policy values per test, and `tests/Support/RecordingHasher.php` is a counting decorator over the real hasher.
+
+Code corrections made in this session, each of which was a live defect rather than a style change:
+
+- `User` implements `Illuminate\Contracts\Auth\Authenticatable`, without an invented `remember_token` bypass.
+- `SecurityPolicy` reads the algorithm and work factor through `Hash::driver()` instead of reading config directly, and refuses a malformed value rather than coercing it.
+- `AuthenticationService` verifies with `Hasher::check()` against a per-request dummy hash, and `@throws` named `App\Shared\Domain\RateLimited` — it previously resolved to a class in a namespace that does not exist.
+- `SessionSecurity` compares ages with `diffInSeconds(..., absolute: true)`. Carbon 3 returns a **signed** difference, so the bare `>=` against a positive limit was never true and an expired session would have lived forever.
+- `SessionRevoker` no longer claims a caller it does not have (§ below).
+- Docblocks no longer promise a `StepUpGuard` that is not implemented.
+
+**The repository is now green where it was red.** `vendor/bin/phpstan analyse` reported 9 errors, all in `app/Modules/Identity/Auth/`; it now reports **0**. `vendor/bin/pint --test` failed on 2 files in the same directory; it now reports **passed**. The full suite moved from 205 tests / 702 assertions to **305 tests / 949 assertions, all passing**. All four architectural guards pass. §13.2 recorded CI failing on `main`; that specific failure is resolved.
+
+**Defects found in the `T-004` code, each a security property rather than a crash.** The `RateLimited` mis-namespace; the signed-difference lifetime comparison, which would have let an expired session live forever; `SessionRevoker`'s false claim to be called from write paths; an **invalid hashing algorithm name escaping as a raw `InvalidArgumentException`** instead of a fail-closed `SERVICE_UNAVAILABLE`; and **`ErrorResponseFactory` and `AssignCorrelationId` both existing, both matching the specification, and both referenced by nothing** — so a `DomainFailure` reached Laravel's stock renderer, which answers `{"message": "..."}` with no `code` and no `request_id`, and appends a stack trace whenever `APP_DEBUG` is on.
+
+**`AC-T-004-04` is now MET for property scope, and that changed the assessment of the "no write path" claim made earlier in this section.** `ScopeGrantService::grant()` and `::revoke()` DO exist and are the only property-scope write paths; the earlier claim that no such path existed was wrong. Both now invalidate the **subject's** sessions, after the audit row is written, and never the actor's.
+
+**The error-rendering boundary is now wired** (`DR-T004-15`): `bootstrap/app.php` registers `DomainFailure` → `ErrorResponseFactory`, unhandled throwables → `INTERNAL_ERROR` with fixed text, and prepends `AssignCorrelationId`. This is shared infrastructure; no new response format was invented and no new middleware class was created.
+
+**There is still no authentication HTTP surface.** `AC-T-004-07` (CSRF on cookie-authenticated state-changing requests) and `AC-T-004-08` (security headers) have no endpoint to be enforced on. `AC-T-004-09` is now evidenced at the rendering boundary by `tests/Feature/ErrorRenderingTest.php`, including a debug-mode case.
 
 | Criterion | State |
 |---|---|
-| `AC-T-004-01` | **UNEVIDENCED** — audit calls exist in code; no test asserts the events. |
-| `AC-T-004-02` | **UNRESOLVED BY DESIGN** — `SEC-007`. The algorithm is TBD and must not be chosen implicitly. |
-| `AC-T-004-03` | **UNRESOLVED BY DESIGN** — `SEC-008`. Idle and absolute values are TBD. |
-| `AC-T-004-04` | **UNEVIDENCED** — `SessionRevoker` exists; no test asserts revocation on a role or scope change. |
-| `AC-T-004-05` | **UNRESOLVED BY DESIGN** — the step-up freshness window is TBD and the mechanism that satisfies a step-up is unspecified. |
-| `AC-T-004-06` | **UNEVIDENCED** — the limiter exists; no test asserts throttling or lockout. |
-| `AC-T-004-07` | **UNEVIDENCED** — no HTTP surface. |
-| `AC-T-004-08` | **UNRESOLVED BY DESIGN** — the header set is unspecified. |
-| `AC-T-004-09` | **UNEVIDENCED** — no HTTP surface and no test. |
+| `AC-T-004-01` | **EVIDENCED** — `AuthAuditTest`: `test_a_successful_login_writes_auth_succeeded`, `test_a_failed_login_writes_auth_failed_as_a_denial`, `test_logout_writes_auth_logout`, `test_the_correlation_id_is_propagated_onto_every_event`, `test_the_four_authentication_events_are_distinct`, and `test_no_authentication_event_contains_a_secret`. |
+| `AC-T-004-02` | **PARTIAL — mechanism evidenced, value still `TBD`.** `test_a_wrong_password_is_refused`, `test_an_inactive_account_is_refused_identically`, and the timing-shaped tests `test_an_unknown_account_still_performs_a_hash_verification`, `test_a_wrong_password_performs_exactly_one_verification` prove verification happens. `test_the_password_algorithm_refuses_with_sec_007`, `test_the_work_factor_is_not_defaulted`, `test_an_unregistered_algorithm_fails_closed_instead_of_escaping`, `test_every_unregistered_algorithm_name_fails_closed`, `test_a_registered_algorithm_still_resolves`, and `test_malformed_password_hashing_options_fail_closed` prove an algorithm is never chosen implicitly and never substituted. **`SEC-007` remains unresolved by design** — no approved algorithm is selected, so no deployment can authenticate anyone. |
+| `AC-T-004-03` | **PARTIAL — mechanism evidenced, values still `TBD`.** `SessionSecurityTest`: `test_both_lifetime_anchors_are_recorded_at_authentication`, `test_a_session_within_both_lifetimes_passes_and_refreshes_the_idle_anchor`, `test_activity_does_not_extend_the_absolute_lifetime`, `test_an_idle_session_is_refused`, `test_an_expired_session_is_destroyed_not_merely_refused`, `test_a_session_with_no_lifetime_anchor_is_refused`, `test_an_unresolved_lifetime_refuses_instead_of_comparing_against_nothing`. **`SEC-008` values remain unresolved by design.** |
+| `AC-T-004-04` | **PARTIAL — MET for property scope; role assignment deferred.** `tests/Security/ScopeChangeSessionInvalidationTest.php` proves the trigger now exists: `test_revoking_a_scope_invalidates_the_subjects_live_sessions`, `test_granting_a_scope_invalidates_the_subjects_live_sessions`, `test_revocation_does_not_alter_authorization_semantics`, `test_the_actor_s_session_survives_the_change_they_made`, `test_the_scope_change_is_audited_and_the_subjects_sessions_are_still_cut`, `test_a_grant_is_audited_and_the_subjects_sessions_are_still_cut`, `test_a_scope_change_does_not_touch_an_unrelated_users_sessions`, `test_revoking_a_grant_that_is_not_active_cuts_nothing`, `test_a_refused_self_grant_cuts_no_sessions`. `SessionSecurityTest` still proves the mechanism itself. **The role half has no write path to wire** — no role-assignment service exists, only the `User::roles()` relation — so it is deferred rather than faked. |
+| `AC-T-004-05` | **PARTIAL — specified, not enforced.** The canonical seven operations are enumerated in `docs/SECURITY.md` §6.1, cross-referenced from `docs/API-SPEC.md` §3.11.1, and `docs/PRD.md` `SEC-018` has been reconciled to the same seven (`ADR-0014` §6 for six of them, §8 for identity-document reveal). `test_step_up_performed_is_part_of_the_audit_vocabulary` and `test_recording_a_step_up_writes_session_state_and_emits_nothing` prove the vocabulary and reserved session keys exist. **No gate exists, so nothing is enforced** — the mechanism that satisfies a step-up is unspecified (`DR-T004-08`, OPEN) and the freshness window is `TBD`. |
+| `AC-T-004-06` | **EVIDENCED, values still `TBD`.** All 13 tests in `AuthenticationRateLimiterTest`, including `test_crossing_the_ceiling_refuses_with_retry_guidance`, `test_a_lockout_refuses_before_the_rate_ceiling_is_reached`, `test_the_lockout_is_scoped_to_one_key`, `test_the_cache_key_is_a_digest_and_never_the_identifier`, and both fail-closed tests. **`B-05` values remain unresolved by design.** |
+| `AC-T-004-07` | **PARTIAL — session-layer behaviour evidenced; request enforcement unevidenced.** `test_the_session_identifier_changes_at_authentication`, `test_regeneration_preserves_data_but_not_the_identifier`, and `test_ending_a_session_rotates_the_csrf_token` prove fixation protection and token rotation at the session layer. There is no authentication endpoint to assert middleware enforcement on, and none can be built while `SEC-007` refuses every login. |
+| `AC-T-004-08` | **UNRESOLVED BY DESIGN.** The header set is unspecified. `test_no_security_header_is_invented` asserts none was invented. `config/security.php` now states plainly that nothing sets them, rather than naming a `SecurityHeaders` class that does not exist. |
+| `AC-T-004-09` | **EVIDENCED.** `tests/Feature/ErrorRenderingTest.php` (14 tests) proves the rendering boundary: `test_a_domain_failure_renders_the_documented_error_shape`, `test_an_unhandled_defect_exposes_no_internal_detail`, `test_no_stack_trace_appears_in_an_error_body`, `test_debug_mode_does_not_reenable_detail_in_the_response`, `test_an_unresolved_security_policy_renders_as_service_unavailable`, `test_the_error_body_contains_only_the_documented_keys`, and the correlation-ID cases. The audit path is covered by `AuthAuditTest`, and `test_the_user_model_hides_its_own_credential` proves the password attribute is hidden. |
 
 Constraints that remain in force and are **not** resolved by this section:
 
-- `SEC-007` password algorithm, `SEC-008` session idle and absolute values, and `B-05` rate/lockout values stay TBD.
-- The security-header set and the step-up freshness window stay unspecified.
+- `SEC-007` password algorithm, `SEC-008` session idle and absolute values, `B-05` rate/lockout values, and the step-up freshness window all stay TBD. `UnresolvedSecurityPolicyTest` now enforces this as a test, not just a note.
+- The security-header set stays unspecified, and the step-up mechanism stays unspecified.
 - The MFA mechanism is unspecified. No MFA mechanism is implemented, and no `MFA_*` audit action has been added.
-- Missing policy values are `null` and fail closed through `SecurityPolicyUnresolved` with `SERVICE_UNAVAILABLE`. No value is defaulted.
-- No `users.session_version` was invented. Revocation uses the documented `sessions` table.
+- Missing policy values are `null` and fail closed through `SecurityPolicyUnresolved` with `SERVICE_UNAVAILABLE`. No value is defaulted. `test_every_shipped_security_value_is_unresolved` fails the build if one ever becomes a default.
+- No `users.session_version` was invented. Revocation uses the documented `sessions` table, and the `sessions` table is the framework's — see `docs/DATA-MODEL.md` §2.1 for the column contract and why no column was added.
 - Cookie sessions with CSRF protection remain the intended architecture; the values remain unset.
-- Login must not reveal account existence: unknown user, wrong password, and a non-`ACTIVE` account all return `AUTH_FAILED` and share dummy-hash behaviour.
-- Laravel's stock `SESSION_LIFETIME=120` has **not** been adopted as a session lifetime.
+- Login does not reveal account existence: unknown user, wrong password, and a non-`ACTIVE` account all return `AUTH_FAILED` with the same message and a comparable cost. `test_every_refusal_carries_the_same_message` and `test_an_unknown_account_still_performs_a_hash_verification` assert both halves.
+- Laravel's stock `SESSION_LIFETIME=120` has **not** been adopted as a session lifetime. `test_laravels_stock_session_lifetime_is_not_adopted` asserts it.
+- No route, endpoint, or middleware was added, and none is authorized in this scope.
 
 #### 13.1.5 `T-005` — `COMPLETE`
 
-`tests/Feature/RoomStatusMachineTest.php` (20 tests) and the room-status rules in `tests/Architecture/ProhibitedSchemaGuardTest.php` and `tests/Security/AuditRedactionTest.php`, all passing within the 205.
+`tests/Feature/RoomStatusMachineTest.php` (20 tests) and the room-status rules in `tests/Architecture/ProhibitedSchemaGuardTest.php` and `tests/Security/AuditRedactionTest.php`, all passing within the 305.
 
 | Criterion | Evidence |
 |---|---|
@@ -1733,7 +1768,7 @@ Constraints that remain in force and are **not** resolved by this section:
 
 #### 13.1.6 `T-006` — `COMPLETE`
 
-`tests/Feature/HousekeepingTaskTest.php`, 21 tests, passing within the 205.
+`tests/Feature/HousekeepingTaskTest.php`, 21 tests, passing within the 305.
 
 | Criterion | Evidence |
 |---|---|
@@ -1749,20 +1784,23 @@ No production code exists for any task from `T-007` onward. `app/Modules/Invento
 
 `T-000` is likewise `NOT STARTED`: it is a PM and specialist action, and no dated, sourced sign-off exists for `B-01`…`B-06` or `C-01`…`C-10`.
 
-### 13.2 Repository gates that are currently RED
+### 13.2 Repository gates
 
-Two of the gates this repository defines are failing today. This is recorded rather than omitted, because a status section that lists the passing checks and hides the failing ones is worse than no status section.
+Every gate this repository defines was run and passes. This is recorded as measured output, not as a claim.
 
-| Gate | Command | Failure |
+| Gate | Command | Result |
 |---|---|---|
-| PHP static analysis | `php vendor/bin/phpstan analyse` | 9 errors |
-| PHP lint | `php vendor/bin/pint --test` | 2 files |
+| PHP static analysis | `php vendor/bin/phpstan analyse` | **0 errors** |
+| PHP lint | `php vendor/bin/pint --test` | **passed** |
+| Test suite | `php artisan test` | **305 tests, 949 assertions, all passing** |
+| Strict types | `php artisan zafer:guard-strict-types` | **passed** — all project PHP files declare strict types |
+| Money path | `php artisan zafer:guard-money` | **passed** — no float, double, or cast-to-float |
+| Module boundaries | `php artisan zafer:guard-modules` | **passed** — 14 modules, no cross-module imports outside Contracts |
+| Prohibited schema | `php artisan zafer:guard-prohibited-schema` | **passed** — 22 tables, no prohibited column shape |
 
-Every one of these failures is in `app/Modules/Identity/Auth/` — `AuthenticationService.php`, `SecurityPolicy.php`, and `SessionSecurity.php`. **All of it is unverified `T-004` code** (§13.1.4). No `T-001`–`T-003`, `T-005`, or `T-006` file is implicated, which is why those tasks are not downgraded by it, and why `T-001`'s own deliverables are recorded as complete.
+**This section previously reported two failing gates.** At the time of writing, `phpstan` reported 9 errors and `pint --test` failed on 2 files, every one of them in `app/Modules/Identity/Auth/` — all unverified `T-004` code. That red state is **resolved**: the defects are fixed and the two gates now pass. The affected code was not merely reformatted; the errors were real (§13.1.4 lists them, including a signed-difference comparison that would have let an expired session live forever). `T-001`–`T-003`, `T-005`, and `T-006` were never implicated by those failures, which is why their recorded status is unchanged.
 
-The reported errors are: a `@throws` union that PHPStan cannot resolve to a `Throwable`; two calls to `Hasher::verify()` and one to `Hash::manager()` that the contract type does not declare; a return type mismatch between `AbstractHasher` and `Hasher`; a `@return` docblock on a `void` method; a comparison against an empty array that is always false; a call to a non-existent `setOptions()`; and a `login()` argument type mismatch in `SessionSecurity`.
-
-**Consequence:** CI would fail on `main` today. The repository is not release-green, and this document must not be read as saying it is. The fix belongs to a `T-004` session; it was deliberately not made here, because this reconciliation is documentation-only and `T-004` is not authorized to advance.
+**Green gates are not a release judgement.** §13.3 still applies, and the project status in §14 is still RED for readiness reasons that no gate measures.
 
 ### 13.3 What was NOT measured
 

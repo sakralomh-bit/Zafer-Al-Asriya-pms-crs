@@ -76,10 +76,41 @@ erDiagram
 | `permissions` | Atomic action on a resource | surrogate PK | Deny by default |
 | `user_roles` | Role assignment **scoped to a property** | composite | Role is never global; see below |
 | `user_property_scope` | Explicit grant of a user's access to a property | composite | **A grant, not a filter.** Absence of a grant means no access |
-| `sessions` | Server-side session state | surrogate PK | Revocation, idle timeout, lockout state |
+| `sessions` | Server-side session state | session identifier (see below) | **No application-owned state.** The table is the framework's; revocation is a row delete, the lifetimes are payload keys, and lockout is not stored here at all. Full column contract in §2.1 |
 | `mfa_secrets` | MFA enrolment material | surrogate PK | Encrypted; separate key boundary |
 
 **Design note.** `D-001` says Group Manager has access to all properties and Support has explicitly scoped access. This is modeled as **explicit grant records for all 10 properties**, not as a `is_superadmin` flag. A superuser flag would be a permanent, unauditable bypass of the scope model and would make the property-breakout test meaningless. Explicit grants are more rows and are provably correct.
+
+#### `sessions` — Laravel session contract
+
+`sessions` is **owned by the framework's session driver**, not by this codebase. The columns below are fixed by the `Illuminate\Session\DatabaseSessionHandler` contract. Application code must not add columns, and must not assume it can read a session row for anything other than what the driver exposes.
+
+| Column | Type | Notes |
+|---|---|---|
+| `id` | string | The session ID, i.e. the value the cookie carries. Not a surrogate PK in the sense the other tables use |
+| `user_id` | `char(26)`, nullable | **Written by the framework**, not by application code: `DatabaseSessionHandler` populates it from the guard on every write. `null` until login resolves, and `null` again at logout. It is the only column that links a session row to an identity, and it is what `SessionRevoker` matches on to purge every session belonging to a user |
+| `ip_address` | `string(45)`, nullable | Client address, framework-written |
+| `user_agent` | `text`, nullable | User agent, framework-written |
+| `payload` | `longText` | Opaque, base64-serialized session data. **Never inspect or parse it** — read values back through the session object |
+| `last_activity` | `integer` | Unix timestamp, framework-written, indexed. **Not read by application code** — the idle anchor is `auth.last_activity_at` in the payload instead (see below) |
+
+**Every column is written by `Illuminate\Session\DatabaseSessionHandler`.** Application code writes none of them. In particular `user_id` is not set by this codebase: writing it by hand would race the handler's own write and be silently overwritten on the next request.
+
+**The `SEC-008` lifetimes are not columns.** They are reserved keys inside `payload`, written by `SessionSecurity` through the session object:
+
+| Payload key | Meaning |
+|---|---|
+| `auth.authenticated_at` | Absolute-lifetime anchor. Activity does **not** extend it |
+| `auth.last_activity_at` | Idle-lifetime anchor. Activity **does** extend it |
+| `auth.user_id` | The authenticated user, namespaced so it cannot collide with the driver's own `user_id` key |
+| `auth.step_up_at` | When the last step-up was performed. Written and read by nothing yet — see `DR-T004-08`, OPEN |
+| `auth.step_up_operation` | Which operation that step-up was for. Same status |
+
+There is no `created_at` on this table, which is why the absolute lifetime is anchored in `payload` rather than derived from the row: a driver-managed table that is rebuilt or vacuumed must not lose the anchor that `AC-T-004-03` depends on.
+
+**Lockout state is not stored in `sessions` at all.** It is held by the rate limiter's own store, keyed per the lockout keying left open in `B-05`.
+
+**Revocation** is a mass `DELETE` on `user_id`. There is no `revoked_at` column and no soft delete: a revoked session must leave no row that a later code path could mistake for a live one. `SessionRevoker` refuses to run at all when `config('session.driver')` is not `database`, because against any other driver the delete would affect nothing while appearing to succeed.
 
 ### 2.2 Organization and property
 

@@ -102,7 +102,7 @@ Never emit to a client or a log: stack traces, SQL, internal hostnames, secrets,
 | Password hashing | **Algorithm `TBD`** — must meet current guidance; not assumed | Blocked |
 | Session security | Idle timeout, absolute lifetime, revocation on role change | **Values `TBD`** |
 | MFA | Available; required for privileged roles and step-up flows | Specified |
-| Step-up authentication | Required for refunds, config, scope grants, business-date reopen, export, impersonation | Specified |
+| Step-up authentication | Required for the seven canonical operations in §6.1 | **Specified, mechanism `TBD`** |
 | CSRF | Required for cookie-authenticated state-changing requests | Specified |
 | Security headers | On all responses | **Exact set `TBD`** |
 | Rate limiting | Authentication, availability search, export, payment submission | **Values `TBD`** (`B-05`) |
@@ -114,6 +114,26 @@ Never emit to a client or a log: stack traces, SQL, internal hostnames, secrets,
 | SAST / static analysis | CI | Required |
 | Penetration testing | Before production | Required; scope `TBD` |
 | Vulnerability management | Patch cadence and SLAs | **`TBD`** |
+
+### 6.1 Canonical step-up operations
+
+Step-up is required for a **closed, enumerable** set of operations (`DR-T004-09`). Naming them here is the point: "sensitive" must not be re-decided by whoever writes the next endpoint, because a control whose trigger is left to each caller is not a control.
+
+| # | Operation | Why | Source |
+|---|---|---|---|
+| 1 | **Refund a payment** | Separation of duties — the approver must not be the requester | `ADR-0014` §6 |
+| 2 | **Post a configuration change** (tax rate, policy) | A config change rewrites what every future financial statement says | `SEC-006`, `TH-16` |
+| 3 | **Grant or revoke a property scope** | Scope grants are the widest privilege in the system; self-granting is already barred | `ADR-0014` §6 |
+| 4 | **Reopen the business date** | Rewrites already-closed accounting periods | `ADR-0014` §6 |
+| 5 | **Export data** | Bulk extraction of guest PII | `TH-12` |
+| 6 | **Impersonate another user** | Act-as is the strongest privilege of all | `ADR-0014` §6 |
+| 7 | **Reveal a masked identity document** | Defeats masking, which is the control on that data | `ADR-0012`, §4.1 |
+
+This supersedes the earlier six-item summary in §6, which omitted #7 while §4.1 already required step-up for the reveal.
+
+**An operation not on this list does not require step-up.** Adding an eighth is a change to this table, not an implementation detail.
+
+**Status: specified, not implemented.** `T-004` recorded `STEP_UP_PERFORMED` in the audit vocabulary and reserved `auth.step_up_at` / `auth.step_up_operation` session keys, but built no gate, no re-authentication endpoint, and no MFA challenge handler. The mechanism that *satisfies* a step-up is unspecified (`DR-T004-08`, OPEN; `SEC-007`). The control above therefore **does not exist at runtime**, and no endpoint is registered to invoke it. It is documented now so the implementer inherits the list instead of inventing a different one.
 
 ## 7. Infrastructure security
 
