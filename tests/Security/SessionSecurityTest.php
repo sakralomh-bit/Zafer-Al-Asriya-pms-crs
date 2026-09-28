@@ -9,6 +9,7 @@ use App\Modules\Identity\Auth\SecurityPolicyUnresolved;
 use App\Modules\Identity\Auth\SessionRevocationUnsupported;
 use App\Modules\Identity\Auth\SessionRevoker;
 use App\Modules\Identity\Auth\SessionSecurity;
+use App\Modules\Identity\Auth\StepUpOperation;
 use App\Modules\Identity\Authorization\Role;
 use App\Modules\Identity\Models\User;
 use App\Shared\Domain\DomainFailure;
@@ -20,6 +21,7 @@ use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Tests\Concerns\CreatesTestFixtures;
+use Tests\Support\CreatesStepUpProofs;
 use Tests\Support\ResolvesSecurityPolicy;
 use Tests\TestCase;
 
@@ -45,6 +47,7 @@ use Tests\TestCase;
  */
 final class SessionSecurityTest extends TestCase
 {
+    use CreatesStepUpProofs;
     use CreatesTestFixtures;
     use RefreshDatabase;
     use ResolvesSecurityPolicy;
@@ -136,7 +139,10 @@ final class SessionSecurityTest extends TestCase
         $request = $this->request();
 
         $this->sessions->start($request, $this->user);
-        $this->sessions->recordStepUp($request, 'refund');
+        $this->sessions->recordStepUp(
+            $request,
+            $this->stepUpProofFor($this->user, StepUpOperation::Refund),
+        );
         $this->assertNotNull($this->sessions->stepUpAt($request));
 
         // Logging in again must not inherit a step-up the new login never

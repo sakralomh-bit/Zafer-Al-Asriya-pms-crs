@@ -7,6 +7,7 @@ namespace Tests\Security;
 use App\Modules\Identity\Auth\AuthenticationService;
 use App\Modules\Identity\Auth\SecurityPolicy;
 use App\Modules\Identity\Auth\SessionSecurity;
+use App\Modules\Identity\Auth\StepUpOperation;
 use App\Modules\Identity\Authorization\Role;
 use App\Modules\Identity\Models\User;
 use App\Shared\Audit\AuditAction;
@@ -19,6 +20,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Tests\Concerns\CreatesTestFixtures;
+use Tests\Support\CreatesStepUpProofs;
 use Tests\Support\ResolvesSecurityPolicy;
 use Tests\TestCase;
 
@@ -38,6 +40,7 @@ use Tests\TestCase;
  */
 final class AuthAuditTest extends TestCase
 {
+    use CreatesStepUpProofs;
     use CreatesTestFixtures;
     use RefreshDatabase;
     use ResolvesSecurityPolicy;
@@ -169,10 +172,18 @@ final class AuthAuditTest extends TestCase
     }
 
     /**
-     * The step-up STATE is written to the session, not to the audit trail.
+     * `SessionSecurity` writes the step-up STATE and emits nothing itself.
      *
-     * Nothing is emitted because nothing is implemented, and a test that
-     * asserted an event here would be asserting a feature that does not exist.
+     * The state and the audit event have different owners. Writing state is the
+     * session layer's job; `SEC-018`'s audit event belongs to whoever completes
+     * the step-up, which is `StepUpGuard::complete()` — auditing every write of
+     * the state would also audit the writes that only CLEAR it.
+     * `StepUpGuardTest` asserts that emitter.
+     *
+     * `recordStepUp()` takes a `StepUpProof`, not an operation. That is the
+     * change that closes the trust hole: while it took an operation, any caller
+     * with a session could manufacture a completed step-up without a second
+     * factor and the gate would find all four of its conditions satisfied.
      */
     public function test_recording_a_step_up_writes_session_state_and_emits_nothing(): void
     {
@@ -181,13 +192,16 @@ final class AuthAuditTest extends TestCase
 
         $before = DB::table('audit_events')->count();
 
-        $this->sessions->recordStepUp($request, 'refund');
+        $this->sessions->recordStepUp(
+            $request,
+            $this->stepUpProofFor($this->user, StepUpOperation::Refund),
+        );
 
         $this->assertNotNull($this->sessions->stepUpAt($request));
         $this->assertSame(
             $before,
             DB::table('audit_events')->count(),
-            'No audit event is emitted for a step-up: the gate that would emit it is not implemented.',
+            'The session layer records step-up state; the audit event is emitted by StepUpGuard.',
         );
     }
 

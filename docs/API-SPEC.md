@@ -357,6 +357,13 @@ Step-up is required for a **closed** set of operations. "Sensitive" is not a jud
 
 Until a step-up mechanism exists, the control these rows describe **does not exist at runtime**, and the endpoints that depend on it are unreachable — no route is registered in this stage. `MFA_*` and `SEC-007` remain unresolved.
 
+**This table is not the authority; `docs/SECURITY.md` §6.1 is.** `docs/PRD.md:811` states that `docs/SECURITY.md` is normative, which places this section and `docs/STATE-MACHINES.md` below it. Two consequences are now recorded rather than left open:
+
+- `ADR-0014` §6 is **not** a step-up set. It is a separation-of-duties matrix, and only 1 of its 9 rows (Refund) names step-up. `AC-T-004-05` refers to it as though it were the catalogue; that cross-reference is defective, and the seven above are the correct set. See `docs/SECURITY.md` §12.1.7 "Conflict A".
+- `docs/STATE-MACHINES.md` requires step-up for three operations not on this list (reservation cancellation, `OUT_OF_ORDER`, `FORCED_CLOSE`). Under the normative-document rule those three are **not** currently registered Step-up requirements and the set is **not** expanded here. Expanding it is a PM act affecting this table, `docs/SECURITY.md` §6.1, and `PRD.md` `SEC-018` together. See §12.1.7 "Conflict C".
+
+**Nothing above is a registered Decision.** `docs/PRD.md` §15 holds `DR-001` … `DR-014` only; `DR-T004-09` and `DR-T004-10` are unregistered references that define nothing. `docs/SECURITY.md` §12.1 records the substance as established by existing requirements and the registration as an open PM act.
+
 ---
 
 ## 4. Webhooks
@@ -406,6 +413,14 @@ Regardless of provider, the following are required (`Prd_Maker.md` §55):
 | Field-level request/response schemas | **Not yet specified.** Must be produced per endpoint. A specification that invents full JSON schemas now would present an unvalidated guess as a contract. |
 | Search normalization, ranking, typo tolerance | `TBD` (`M-04`) |
 | Availability search response shape and freshness indicator | `TBD` |
+
+Each `TBD` above now has a recorded classification and, where a baseline is
+defensible, a recommended value in `docs/SECURITY.md` §12.1.1. **A recommendation is
+not a resolution**: every row in this table remains `TBD`, and no value was adopted,
+defaulted, or written to configuration. `SEC-007` and `SEC-008` are `PROPOSED —
+SECURITY`; the rate limits are `BLOCKED — BUSINESS` on `B-05`; the header set is
+`PROPOSED — SECURITY`. Implementation stays prohibited until the governance gate is
+passed by the accountable owner (`C-10`).
 | All OTA endpoints | **Deferred (Phase C). `UNKNOWN`.** |
 | All ZATCA endpoints | **`UNKNOWN` (`B-02`)** |
 | All payment provider endpoints | **`UNKNOWN` (`B-04`)** |

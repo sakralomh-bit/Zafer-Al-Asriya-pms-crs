@@ -1,9 +1,11 @@
 <?php
 
+use App\Modules\Identity\Auth\SecurityPolicy;
 use App\Shared\Domain\DomainFailure;
 use App\Shared\Domain\ErrorCode;
 use App\Shared\Domain\ErrorResponseFactory;
 use App\Shared\Http\Middleware\AssignCorrelationId;
+use App\Shared\Http\Middleware\SecurityHeaders;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
@@ -11,6 +13,29 @@ use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\Response;
 
 return Application::configure(basePath: dirname(__DIR__))
+    ->withBindings([
+        // `SecurityPolicy` takes its values as an `array` constructor argument
+        // rather than reaching for the `config()` helper itself. That is
+        // deliberate — it is what lets a test hand the class deliberate
+        // non-baseline numbers and prove a MECHANISM without depending on a
+        // configuration value (see `tests/Support/ResolvesSecurityPolicy`).
+        //
+        // The cost of that arrangement is that the container cannot auto-wire
+        // the class: an `array` parameter is unresolvable, and every consumer
+        // reached through the container — `SecurityHeaders` in the global stack
+        // below, and anything else that asks for a policy — would fail with an
+        // `Unresolvable dependency` error. This binding is that missing edge.
+        //
+        // A CLOSURE, not a value, so `config('security')` is read at resolution
+        // time with the configuration repository fully loaded, and so a policy
+        // is rebuilt per resolution instead of frozen at bootstrap.
+        //
+        // It resolves the real configuration, not a fixture: the shipped
+        // IMPLEMENTED TECHNICAL BASELINES in `config/security.php`. Reading a
+        // value still refuses rather than inventing one, and a refusal is still
+        // `SecurityPolicyUnresolved` (503 `SERVICE_UNAVAILABLE`).
+        SecurityPolicy::class => static fn (): SecurityPolicy => SecurityPolicy::fromConfig(),
+    ])
     ->withRouting(
         web: __DIR__.'/../routes/web.php',
         commands: __DIR__.'/../routes/console.php',
@@ -28,6 +53,21 @@ return Application::configure(basePath: dirname(__DIR__))
         // ID assigned after the failure has no value to give the error body.
         // The class already existed and was unreachable.
         $middleware->prepend(AssignCorrelationId::class);
+
+        // `SEC-009` and `docs/API-SPEC.md` §5 both require security headers on
+        // ALL responses. "All" is the requirement, and it is why this is
+        // appended to the GLOBAL stack rather than added to a route group: a
+        // route-scoped middleware misses the responses nobody wrote a controller
+        // for — the framework's 404 and 405, the `DomainFailure` renderer, the
+        // unhandled-exception handler below, and redirects.
+        //
+        // Appended AFTER `AssignCorrelationId` on purpose. `prepend` order runs
+        // outermost-first, and a header middleware that ran before the
+        // correlation ID would be the outer layer here, which is correct for
+        // coverage but would put it in front of the thing that guarantees every
+        // response has a `request_id`. Global middleware runs in registration
+        // order, so appending puts these headers closest to the response.
+        $middleware->append(SecurityHeaders::class);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         $exceptions->shouldRenderJsonWhen(

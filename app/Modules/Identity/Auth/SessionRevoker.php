@@ -36,14 +36,16 @@ final class SessionRevoker
     /**
      * Revoke every live session for a user.
      *
-     * NOT YET WIRED. Nothing in `app/` calls this — there is no role-assignment
-     * or scope-write path in the repository to call it from, and inventing one
-     * is outside `T-004`. The wiring belongs with the write paths when they
-     * exist, and must land in the same commit as the first caller: a revoker
-     * with no caller revokes nothing. `AC-T-004-04` is therefore PARTIAL — the
-     * mechanism is proven by `SessionSecurityTest`, the trigger does not exist.
+     * WIRED FOR PROPERTY SCOPE, NOT FOR ROLE ASSIGNMENT. `ScopeGrantService`
+     * calls this from both `grant()` and `revoke()` after the audit row is
+     * written. An earlier revision of this docblock claimed nothing in `app/`
+     * called this at all; that was wrong, and `docs/TASKS.md` §13.1.4 records
+     * the correction. The role half of `AC-T-004-04` is still unwired: there is
+     * no role-assignment service in the repository to call it from, only the
+     * `User::roles()` relation, so `AC-T-004-04` is PARTIAL — met for property
+     * scope, deferred for roles.
      *
-     * When wired, call this AFTER the change is committed in memory, so the
+     * Callers must invoke this AFTER the change is committed in memory, so the
      * very next request is both unscoped and unsessioned.
      */
     public function revokeAllFor(string $userId): int

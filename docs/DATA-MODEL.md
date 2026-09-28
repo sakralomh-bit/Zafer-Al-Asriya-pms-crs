@@ -103,12 +103,14 @@ erDiagram
 | `auth.authenticated_at` | Absolute-lifetime anchor. Activity does **not** extend it |
 | `auth.last_activity_at` | Idle-lifetime anchor. Activity **does** extend it |
 | `auth.user_id` | The authenticated user, namespaced so it cannot collide with the driver's own `user_id` key |
-| `auth.step_up_at` | When the last step-up was performed. Written and read by nothing yet — see `DR-T004-08`, OPEN |
+| `auth.step_up_at` | When the last step-up was performed. Written and read by nothing yet — see `docs/SECURITY.md` §12, "MFA mechanism" (the reference sometimes given here, `DR-T004-08`, is not a registered decision) |
 | `auth.step_up_operation` | Which operation that step-up was for. Same status |
 
 There is no `created_at` on this table, which is why the absolute lifetime is anchored in `payload` rather than derived from the row: a driver-managed table that is rebuilt or vacuumed must not lose the anchor that `AC-T-004-03` depends on.
 
 **Lockout state is not stored in `sessions` at all.** It is held by the rate limiter's own store, keyed per the lockout keying left open in `B-05`.
+
+**The current keying is a single combined `email + IP` digest, and it is a recorded finding, not a settled design.** `AuthenticationRateLimiter::key()` computes one `sha256` over the lowercased/trimmed email joined to the client address, and both the rate-limit counter and the lockout counter are scoped to that one digest. Hashing the key is correct — the credential never reaches the cache backend — but **combining the two dimensions is not**: one key gives an attacker the product of the two limits rather than the protection of both, and an attacker who rotates source addresses against a single account receives a fresh key on every attempt and is never throttled at all. `docs/SECURITY.md` §12.1.4 records `PROPOSED — SECURITY` for independent account **and** IP dimensions, each hashed, neither derived from the other. **Nothing was changed to obtain that finding; the combined key remains live in `app/`.** The `B-05` values themselves remain `BLOCKED — BUSINESS`, so the limiter fails closed in production regardless.
 
 **Revocation** is a mass `DELETE` on `user_id`. There is no `revoked_at` column and no soft delete: a revoked session must leave no row that a later code path could mistake for a live one. `SessionRevoker` refuses to run at all when `config('session.driver')` is not `database`, because against any other driver the delete would affect nothing while appearing to succeed.
 

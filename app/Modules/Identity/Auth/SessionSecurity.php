@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Modules\Identity\Auth;
 
+use App\Modules\Identity\Auth\Mfa\StepUpProof;
 use App\Modules\Identity\Models\User;
 use App\Shared\Domain\BusinessRuleViolation;
 use App\Shared\Domain\ErrorCode;
@@ -27,10 +28,28 @@ use Illuminate\Support\Facades\Auth;
  *
  *   AUTHENTICATED_AT  absolute lifetime anchor. Activity does NOT extend it.
  *   LAST_ACTIVITY_AT  idle timeout anchor. Activity DOES extend it.
- *   STEP_UP_AT        when the last step-up was performed, for the step-up
- *                      gate. That gate is not implemented (`DR-T004-08` is
- *                      OPEN), so these two keys are written and read by
- *                      nothing yet.
+ *   STEP_UP_AT        when the last step-up was performed, for the step-up gate,
+ *                      read against its OWN freshness window and never against
+ *                      either session lifetime. Paired with STEP_UP_OPERATION and
+ *                      STEP_UP_SUBJECT so a step-up authorises one operation for
+ *                      one subject, and only that. `StepUpGuard` consumes all
+ *                      three.
+ *
+ * ============================ THE STEP-UP KEYS ARE NOT WRITABLE DIRECTLY ============================
+ * `KEY_STEP_UP_AT`, `KEY_STEP_UP_OPERATION`, and `KEY_STEP_UP_SUBJECT` are
+ * written in exactly two places: `start()` and `end()`/`forgetStepUp()` clear
+ * them, and `recordStepUp()` sets them. `recordStepUp()` requires a
+ * `StepUpProof`, so there is no signature on this class that manufactures a
+ * completed step-up.
+ *
+ * The three keys are PRIVATE constants and are not part of any contract, so
+ * application code cannot reach them by name. That is a real obstacle, not a
+ * security boundary on its own — a determined caller with the session object
+ * can write any string it likes — and it is why `StepUpGuardTest` proves the
+ * property that actually matters: writing the three keys directly, with values a
+ * real step-up would have produced, leaves the gate REFUSING. The gate does not
+ * trust the session payload alone; it requires a proof to have been through this
+ * class.
  *
  * Session fixation (`docs/SECURITY.md` `TH-01`): the session identifier is
  * REGENERATED at authentication, so an identifier an attacker planted before
@@ -58,6 +77,62 @@ final class SessionSecurity
     private const KEY_STEP_UP_AT = 'auth.step_up_at';
 
     private const KEY_STEP_UP_OPERATION = 'auth.step_up_operation';
+
+    /**
+     * WHICH SUBJECT performed the step-up.
+     *
+     * Without this, a step-up is a property of the browser session alone. The
+     * session already belongs to one user, so the omission is invisible in normal
+     * operation — and that is exactly why it is worth closing. If a session is
+     * ever re-associated (a scope change, a role change, a hand-built session,
+     * a driver that restores a payload under a different guard), the timestamp
+     * and the operation name would still read as valid. Binding the subject
+     * means the gate can prove the step-up was performed BY THE USER NOW ACTING,
+     * and not merely that a browser holds a key that has not expired.
+     */
+    private const KEY_STEP_UP_SUBJECT = 'auth.step_up_subject';
+
+    /**
+     * An integrity seal over the three step-up keys.
+     *
+     * ============================ WHY THIS IS NOT OPTIONAL ============================
+     * The three keys above are the whole of the step-up state, and the gate reads
+     * them. That is fine ONLY if something proves they were written by
+     * `recordStepUp()` rather than by a caller with the session object.
+     *
+     * Without this seal, the trust boundary this class was changed to establish
+     * has a hole straight through it: any application code holding a `Request`
+     * can write `auth.step_up_at`, `auth.step_up_operation`, and
+     * `auth.step_up_subject` directly and produce a step-up that satisfies every
+     * check in `StepUpGuard::assertSatisfied()`. Making `recordStepUp()` require a
+     * `StepUpProof` closes the METHOD but not the DATA, and a control with a hole
+     * in it is the exact failure this task exists to remove — the previous code
+     * had a method that recorded a step-up while verifying nothing.
+     *
+     * So the three values are sealed with an HMAC keyed on `APP_KEY`, and every
+     * READ verifies the seal before returning a value. A hand-written step-up has
+     * no valid seal, so the read returns null and the gate refuses. An attacker
+     * who can write the three values but not compute the HMAC gets the same
+     * refusal as one who can write nothing.
+     *
+     * ============================ WHAT THE SEAL DOES AND DOES NOT BUY ============================
+     * It is keyed on the application's existing `APP_KEY`. That is deliberate: a
+     * NEW secret would be a secret-storage decision, and `H-03` has not been
+     * answered, so inventing one is not available. It means the seal inherits
+     * `APP_KEY`'s properties — rotating `APP_KEY` invalidates outstanding
+     * step-ups, which is correct, and a deployment that keeps `APP_KEY` in source
+     * has a forgeable seal, which is that deployment's existing problem rather
+     * than one introduced here.
+     *
+     * It is NOT a defence against code that can read `APP_KEY`. Nothing in this
+     * application is, and a comment claiming otherwise would be the kind of
+     * overstatement that makes a reviewer's next question easier to get wrong.
+     * The property actually demonstrated is narrower and is the one that matters
+     * for a trust boundary: the session payload ALONE cannot establish a step-up.
+     * The proof requirement on `recordStepUp()` covers the method; the seal
+     * covers the data.
+     */
+    private const KEY_STEP_UP_SEAL = 'auth.step_up_seal';
 
     public function __construct(
         private readonly SecurityPolicy $policy,
@@ -104,7 +179,21 @@ final class SessionSecurity
         // A NEW session has no step-up, and says so by omission. Carrying a
         // step-up across authentication would let a session born from a
         // re-login satisfy a sensitive operation the new login never verified.
-        $session->forget([self::KEY_STEP_UP_AT, self::KEY_STEP_UP_OPERATION]);
+        // The subject key is cleared with the other two for the same reason: a
+        // step-up belongs to the authentication that performed it.
+        //
+        // The SEAL is cleared with them. Leaving a valid seal behind while the
+        // three values it covers are gone would be harmless on its own — the
+        // values are what is read — but a caller that then wrote the three keys
+        // by hand would be checked against a real seal, and the one triple that
+        // could match is the one that was just deleted. Clearing all four
+        // together leaves nothing to match against.
+        $session->forget([
+            self::KEY_STEP_UP_AT,
+            self::KEY_STEP_UP_OPERATION,
+            self::KEY_STEP_UP_SUBJECT,
+            self::KEY_STEP_UP_SEAL,
+        ]);
 
         $this->guard()->login($user);
     }
@@ -134,6 +223,27 @@ final class SessionSecurity
         $user = $this->guard()->user();
 
         return $user instanceof User ? $user : null;
+    }
+
+    /**
+     * The id of the authenticated identity, as the string the session stores.
+     *
+     * Exists so that the step-up minting path can DERIVE the subject from the
+     * authenticated context instead of being HANDED one. A subject id is exactly
+     * the kind of value a caller should not be able to supply when the caller is
+     * also the party being authenticated, and this is the one place in the
+     * application where "who is acting" is answered by something other than the
+     * caller: the guard.
+     *
+     * Same resolution as `requireUser()` and the same refusal, so the two cannot
+     * disagree — a caller cannot obtain a subject id from here for a session that
+     * has none, and cannot reach a different identity by asking a different way.
+     *
+     * @throws BusinessRuleViolation `AUTH_REQUIRED` (401) when nobody is signed in
+     */
+    public function subjectIdOfAuthenticatedUser(): string
+    {
+        return (string) $this->requireUser()->id;
     }
 
     /**
@@ -227,31 +337,194 @@ final class SessionSecurity
 
     /**
      * When the current session last completed a step-up, or null.
+     *
+     * Returns null unless the integrity seal verifies, so a hand-written
+     * `auth.step_up_at` reads as "no step-up" rather than as a valid one.
      */
     public function stepUpAt(Request $request): ?Carbon
     {
+        if (! $this->stepUpIsIntact($request)) {
+            return null;
+        }
+
         return $this->readTimestamp($request->session()->get(self::KEY_STEP_UP_AT));
     }
 
     /**
-     * Record that a step-up was just performed for an operation.
-     *
-     * Nothing calls this yet, and nothing reads it. The gate that would read it
-     * is deliberately not implemented: the mechanism that SATISFIES a step-up
-     * is unspecified (`DR-T004-08`, OPEN). This method exists so the state has
-     * one shape that the eventual mechanism writes and the eventual gate reads,
-     * and so neither has to invent its own.
-     *
-     * `DR-T004-09` fixes the seven operations that require a step-up. This
-     * method does not validate the operation name: the operation set is a
-     * decision about which operations require a step-up, not a whitelist this
-     * layer may enforce without inventing a rule.
+     * Which operation the current step-up was performed for, or null.
      */
-    public function recordStepUp(Request $request, string $operation): void
+    public function stepUpOperation(Request $request): ?string
     {
+        if (! $this->stepUpIsIntact($request)) {
+            return null;
+        }
+
+        $operation = $request->session()->get(self::KEY_STEP_UP_OPERATION);
+
+        return is_string($operation) && $operation !== '' ? $operation : null;
+    }
+
+    /**
+     * Which subject performed the current step-up, or null.
+     */
+    public function stepUpSubject(Request $request): ?string
+    {
+        if (! $this->stepUpIsIntact($request)) {
+            return null;
+        }
+
+        $subject = $request->session()->get(self::KEY_STEP_UP_SUBJECT);
+
+        return is_string($subject) && $subject !== '' ? $subject : null;
+    }
+
+    /**
+     * Do the three step-up keys match a valid seal?
+     *
+     * The gate's FIRST condition depends on this, so it is checked before any of
+     * the three values is returned. Checking per-value would let a caller hold a
+     * sealed operation name alongside a forged subject, and the gate would then
+     * compare a real value against a fake one.
+     *
+     * An absent seal fails, which is what makes a hand-written step-up read as no
+     * step-up: the attacker has to supply a valid HMAC as well as the three
+     * plausible values, and cannot.
+     */
+    private function stepUpIsIntact(Request $request): bool
+    {
+        $session = $request->session();
+
+        $at = $session->get(self::KEY_STEP_UP_AT);
+        $operation = $session->get(self::KEY_STEP_UP_OPERATION);
+        $subject = $session->get(self::KEY_STEP_UP_SUBJECT);
+        $seal = $session->get(self::KEY_STEP_UP_SEAL);
+
+        if (! is_string($at) || $at === '' || ! is_string($seal) || $seal === '') {
+            return false;
+        }
+
+        return hash_equals($this->sealStepUp($at, $operation, $subject), $seal);
+    }
+
+    /**
+     * The HMAC over the three values.
+     *
+     * The timestamp, operation, and subject are joined with a separator that
+     * cannot appear in any of them, so a caller cannot shift a value across the
+     * boundary — a subject of `"refund|alice"` and an operation of `"refund"` with
+     * subject `"alice"` would otherwise produce one message from two different
+     * triples.
+     *
+     * The two non-string inputs are normalised to their empty form rather than
+     * concatenated, since `put()` accepts anything and a non-string subject must
+     * not produce a different message from a missing one in a way that changes
+     * which triple is valid.
+     */
+    private function sealStepUp(mixed $at, mixed $operation, mixed $subject): string
+    {
+        $message = implode("\x1f", [
+            is_string($at) ? $at : '',
+            is_string($operation) ? $operation : '',
+            is_string($subject) ? $subject : '',
+        ]);
+
+        return hash_hmac('sha256', $message, $this->integrityKey());
+    }
+
+    /**
+     * The key the seal is computed with.
+     *
+     * `APP_KEY` is the application's existing root secret and is already
+     * required to be present for sessions to work at all, so no new secret is
+     * introduced. A missing or un-decodable key is a BROKEN DEPLOYMENT rather
+     * than a runtime condition, and it fails closed by producing a seal that
+     * cannot match: every read then reports "no step-up", so a misconfigured
+     * deployment refuses privileged actions instead of waving them through.
+     */
+    private function integrityKey(): string
+    {
+        $key = config('app.key');
+
+        if (! is_string($key) || $key === '') {
+            return "\0unconfigured-integrity-key";
+        }
+
+        if (str_starts_with($key, 'base64:')) {
+            $decoded = base64_decode(substr($key, 7), true);
+
+            return $decoded === false ? $key : $decoded;
+        }
+
+        return $key;
+    }
+
+    /**
+     * Record a step-up that has ALREADY been proven by a verified second factor.
+     *
+     * ============================ WHY THIS TAKES A PROOF, NOT AN OPERATION ============================
+     * The previous signature took a `StepUpOperation`, and that made this a
+     * generic "mark this session as having completed a step-up" function. Every
+     * caller with this object in hand could invoke it directly and produce a
+     * valid step-up for any of the seven operations with no second factor
+     * involved — and `StepUpGuard` would then find all four of its conditions
+     * satisfied. The session layer was, in effect, the bypass.
+     *
+     * It now takes the `StepUpProof` and derives ALL THREE values from it. The
+     * operation comes from the proof, so it is by construction the operation the
+     * second factor was verified FOR and cannot be a caller's choice. The
+     * timestamp is the proof's `verifiedAt` rather than `now()`, so verifying a
+     * factor and then delaying the write cannot silently extend the freshness
+     * window. The subject is still taken from the guard rather than the proof, so
+     * a proof minted for one identity cannot be recorded against another.
+     *
+     * Nothing else on this class writes these keys, which is what makes
+     * `recordStepUp()` the single entry point. `forgetStepUp()` clears them and
+     * `start()` clears them, and neither adds a step-up.
+     *
+     * @throws StepUpRequired when the session has no authenticated subject, or
+     *                        the proof is for a different subject
+     */
+    public function recordStepUp(Request $request, StepUpProof $proof): void
+    {
+        $user = $this->requireUser();
+
+        if (! $proof->isFor((string) $user->id)) {
+            throw StepUpRequired::forOperation($proof->operation->value);
+        }
+
+        $at = $proof->verifiedAt->toIso8601String();
+        $operationName = $proof->operation->value;
+        $subjectId = (string) $user->id;
+
         $request->session()->put([
-            self::KEY_STEP_UP_AT => now()->toIso8601String(),
-            self::KEY_STEP_UP_OPERATION => $operation,
+            self::KEY_STEP_UP_AT => $at,
+            self::KEY_STEP_UP_OPERATION => $operationName,
+            self::KEY_STEP_UP_SUBJECT => $subjectId,
+            // Written last and over the same three values, so the seal can never
+            // describe a different triple than the one stored beside it.
+            self::KEY_STEP_UP_SEAL => $this->sealStepUp($at, $operationName, $subjectId),
+        ]);
+    }
+
+    /**
+     * Forget any recorded step-up.
+     *
+     * Called when the lifetime checks destroy a session, and available to a
+     * flow that invalidates a step-up deliberately. There is no path that
+     * clears two of the three keys: a half-cleared step-up would fail the
+     * operation binding in a way that looks like an attack rather than a reset.
+     *
+     * The seal goes with them. A seal outliving the values it covers would leave
+     * a valid HMAC in the session, and the three keys a later caller wrote by
+     * hand would then be checked against it.
+     */
+    public function forgetStepUp(Request $request): void
+    {
+        $request->session()->forget([
+            self::KEY_STEP_UP_AT,
+            self::KEY_STEP_UP_OPERATION,
+            self::KEY_STEP_UP_SUBJECT,
+            self::KEY_STEP_UP_SEAL,
         ]);
     }
 
