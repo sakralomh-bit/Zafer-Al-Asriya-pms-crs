@@ -829,7 +829,7 @@ Constraint: The PMS remains the system of record. An OTA message is a
 | `SEC-015` | Export controls: role-gated, volume-limited, audited. |
 | `SEC-016` | Property breakout is a named threat with a mandatory test. |
 | `SEC-017` | No `FLOAT`/`DOUBLE` for money (also a correctness control). |
-| `SEC-018` | Privileged actions (refund, configuration, scope grant, business-date reopen, export, impersonation) require step-up and produce an audit event. |
+| `SEC-018` | Privileged actions (refund, configuration, scope grant, business-date reopen, export, impersonation, identity-document reveal) require step-up and produce an audit event. |
 
 ---
 
