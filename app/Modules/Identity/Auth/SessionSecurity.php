@@ -27,7 +27,10 @@ use Illuminate\Support\Facades\Auth;
  *
  *   AUTHENTICATED_AT  absolute lifetime anchor. Activity does NOT extend it.
  *   LAST_ACTIVITY_AT  idle timeout anchor. Activity DOES extend it.
- *   STEP_UP_AT        when the last step-up was performed, for `StepUpGuard`.
+ *   STEP_UP_AT        when the last step-up was performed, for the step-up
+ *                      gate. That gate is not implemented (`DR-T004-08` is
+ *                      OPEN), so these two keys are written and read by
+ *                      nothing yet.
  *
  * Session fixation (`docs/SECURITY.md` `TH-01`): the session identifier is
  * REGENERATED at authentication, so an identifier an attacker planted before
@@ -156,7 +159,10 @@ final class SessionSecurity
      * leaves the session in place would let the caller retry into a session the
      * server has already decided is too old.
      *
-     * @throws BusinessRuleViolation `AUTH_REQUIRED` (401)
+     * @throws BusinessRuleViolation `AUTH_REQUIRED` (401) when there is no
+     *                               session, no anchor, or an expired one
+     * @throws SecurityPolicyUnresolved when `SEC-008` is undecided, so no
+     *                                  lifetime can be compared at all
      */
     public function enforceLifetimes(Request $request): void
     {
@@ -188,7 +194,14 @@ final class SessionSecurity
 
         $now = now();
 
-        if ($now->diffInSeconds($authenticatedAt) >= $absoluteLimit) {
+        // `diffInSeconds()` is SIGNED by default in this Carbon version: called
+        // as `$now->diffInSeconds($earlier)` it returns a negative number, so a
+        // bare `>=` comparison against a positive limit is never true and the
+        // session would live forever. The magnitude is requested explicitly.
+        $absoluteAge = $now->diffInSeconds($authenticatedAt, absolute: true);
+        $idleAge = $now->diffInSeconds($lastActivityAt, absolute: true);
+
+        if ($absoluteAge >= $absoluteLimit) {
             $this->end($request);
 
             throw new BusinessRuleViolation(
@@ -197,7 +210,7 @@ final class SessionSecurity
             );
         }
 
-        if ($now->diffInSeconds($lastActivityAt) >= $idleLimit) {
+        if ($idleAge >= $idleLimit) {
             $this->end($request);
 
             throw new BusinessRuleViolation(
@@ -223,10 +236,16 @@ final class SessionSecurity
     /**
      * Record that a step-up was just performed for an operation.
      *
-     * There is no endpoint that calls this yet: the mechanism that SATISFIES a
-     * step-up is unspecified (see `StepUpGuard`). It exists so the state the
-     * gate reads is the same shape the eventual mechanism will write, and so
-     * the gate is testable without inventing an MFA factor.
+     * Nothing calls this yet, and nothing reads it. The gate that would read it
+     * is deliberately not implemented: the mechanism that SATISFIES a step-up
+     * is unspecified (`DR-T004-08`, OPEN). This method exists so the state has
+     * one shape that the eventual mechanism writes and the eventual gate reads,
+     * and so neither has to invent its own.
+     *
+     * `DR-T004-09` fixes the seven operations that require a step-up. This
+     * method does not validate the operation name: the operation set is a
+     * decision about which operations require a step-up, not a whitelist this
+     * layer may enforce without inventing a rule.
      */
     public function recordStepUp(Request $request, string $operation): void
     {

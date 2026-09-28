@@ -9,6 +9,8 @@ use App\Modules\Identity\Authorization\Role;
 use App\Modules\Identity\Authorization\RolePermissionMatrix;
 use App\Modules\Identity\Contracts\Actor;
 use App\Shared\Domain\DomainModel;
+use Illuminate\Auth\Authenticatable as AuthenticatableTrait;
+use Illuminate\Contracts\Auth\Authenticatable as AuthenticatableContract;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Collection;
@@ -29,9 +31,30 @@ use Illuminate\Support\Collection;
  *
  * `password` exists but the hashing algorithm is `TBD` (`SEC-007`) and is NOT
  * chosen here — `T-004` owns that decision.
+ *
+ * --------------------------------------------------------------------------------
+ * `Authenticatable` — added by `T-004` under `DR-T004-14`, minimally.
+ * --------------------------------------------------------------------------------
+ *
+ * `SessionSecurity::start()` calls `StatefulGuard::login()`, whose contract
+ * requires `Illuminate\Contracts\Auth\Authenticatable`. Without it, the guard
+ * raises a `TypeError` and NO user can ever be signed in.
+ *
+ * This is the framework's own trait, unmodified. It changes nothing about the
+ * Identity model: it adds no column, no flag, no bypass, and no relationship.
+ * `getAuthIdentifier()` resolves through `getKeyName()`, so the authenticator
+ * is the ULID surrogate key — never the email, which `DM-1` forbids as a key.
+ *
+ * `remember_token` is NOT a column on `users` and is NOT added. "Remember me"
+ * is not an approved `T-004` requirement, and adding the column would create a
+ * long-lived credential surface that no governing document asks for. The
+ * trait's remember-token methods are therefore never reached in this
+ * application: no remember cookie is ever issued.
  */
-final class User extends DomainModel implements Actor
+final class User extends DomainModel implements Actor, AuthenticatableContract
 {
+    use AuthenticatableTrait;
+
     public const STATUS_INVITED = 'INVITED';
 
     public const STATUS_ACTIVE = 'ACTIVE';

@@ -53,6 +53,8 @@ final class AuthenticationRateLimiter
      * Refuse the attempt if the limit is exhausted or a lockout is active.
      *
      * @throws RateLimited `RATE_LIMITED` (429) with retry guidance
+     * @throws SecurityPolicyUnresolved when `B-05` is undecided — a ceiling that
+     *                                  was never set is not an unlimited one
      */
     public function assertAttemptAllowed(string $email, ?string $ipAddress): void
     {
@@ -75,6 +77,8 @@ final class AuthenticationRateLimiter
     /**
      * Record a failed attempt and apply the lockout when it crosses the
      * threshold.
+     *
+     * @throws SecurityPolicyUnresolved when `B-05` is undecided
      */
     public function recordFailure(string $email, ?string $ipAddress): void
     {

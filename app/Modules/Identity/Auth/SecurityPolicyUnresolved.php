@@ -104,4 +104,21 @@ final class SecurityPolicyUnresolved extends DomainFailure
                 .'valid has not been decided (SEC-008).',
         );
     }
+
+    /**
+     * A value is present but is not a shape this policy can read.
+     *
+     * Distinct from "unresolved": the owner HAS set something, and it is not a
+     * number or a string. Reporting it as unresolved would send an operator to
+     * the decision record when the actual fix is the environment value itself.
+     */
+    public static function malformedValue(string $key): self
+    {
+        return new self(
+            decision: 'SEC-007/SEC-008/B-05',
+            setting: 'security.'.$key,
+            message: 'A security policy value is set to an unusable shape. The setting is named in '
+                .'this response; the decision itself has not been changed.',
+        );
+    }
 }

@@ -9,6 +9,8 @@ use App\Shared\Audit\AuditAction;
 use App\Shared\Audit\AuditRecord;
 use App\Shared\Audit\AuditRecorder;
 use App\Shared\Domain\DomainFailure;
+use App\Shared\Domain\RateLimited;
+use Illuminate\Contracts\Hashing\Hasher;
 use Illuminate\Http\Request;
 
 /**
@@ -39,6 +41,11 @@ use Illuminate\Http\Request;
  * `AC-T-004-01`: "Authentication and logout produce audit events." The event
  * names are the ones `docs/API-SPEC.md` §3.11 already fixes —
  * `AUTH_SUCCEEDED` / `AUTH_FAILED` / `AUTH_LOGOUT`.
+ *
+ * A successful authentication does NOT confer a permission. Every operation
+ * this identity attempts is still decided by `Identity\Contracts\AuthorizesRequests`
+ * over `ADR-0014` §1's six factors, and that decision is unchanged by anything
+ * in this class.
  */
 final class AuthenticationService
 {
@@ -52,12 +59,13 @@ final class AuthenticationService
     /**
      * Authenticate and establish a session.
      *
-     * @throws RateLimited when the attempt is throttled or the account is locked
-     * @throws AuthenticationFailed when the credentials do not identify an ACTIVE identity
-     * @throws SecurityPolicyUnresolved when SEC-007/SEC-008/B-05 are undecided
      *
      * @param  string  $email  the submitted identifier, used only to look the account up and to key the rate limiter
      * @param  string  $password  the submitted secret, used only for verification and never stored, logged, or audited
+     *
+     * @throws RateLimited when the attempt is throttled or the account is locked
+     * @throws AuthenticationFailed when the credentials do not identify an ACTIVE identity
+     * @throws SecurityPolicyUnresolved when SEC-007/SEC-008/B-05 are undecided
      */
     public function login(Request $request, string $email, string $password, ?string $correlationId): User
     {
@@ -79,14 +87,17 @@ final class AuthenticationService
             // performed against a throwaway hash of the submitted password and
             // the result is discarded. The hash is generated once per request
             // from a value nobody chose to be secret.
-            $hasher->verify($password, $this->dummyHash($hasher));
+            $hasher->check($password, $this->dummyHash($hasher));
 
             $this->refuse($request, $email, null, $correlationId, 'no_matching_account');
 
             throw AuthenticationFailed::invalidCredentials();
         }
 
-        if (! $hasher->verify($password, (string) $user->password)) {
+        // `Hasher::check()` is the contract method, and it is the constant-time
+        // comparison the framework provides. There is no `verify()` on
+        // `Illuminate\Contracts\Hashing\Hasher` in this framework version.
+        if (! $hasher->check($password, (string) $user->password)) {
             $this->refuse($request, $email, $user, $correlationId, 'password_mismatch');
 
             throw AuthenticationFailed::invalidCredentials();
@@ -212,19 +223,11 @@ final class AuthenticationService
      * A hash to verify against when no account matched.
      *
      * It is a real hash of a value that is not a credential, produced once per
-     * process and reused, so the cost of this branch matches the cost of the
-     * real branch without a second key derivation per request.
-     *
-     * @param  \Illuminate\Contracts\Hashing\Hasher  $hasher
+     * request from a value nobody chose to be secret, so the cost of this branch
+     * matches the cost of the real branch.
      */
-    private function dummyHash(\Illuminate\Contracts\Hashing\Hasher $hasher): string
+    private function dummyHash(Hasher $hasher): string
     {
-        static $dummy = null;
-
-        if ($dummy === null) {
-            $dummy = $hasher->make('this-value-is-not-a-credential');
-        }
-
-        return $dummy;
+        return $hasher->make('this-value-is-not-a-credential');
     }
 }

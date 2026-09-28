@@ -36,8 +36,15 @@ final class SessionRevoker
     /**
      * Revoke every live session for a user.
      *
-     * Called from the scope and role write paths AFTER the change is committed
-     * in memory, so the very next request is both unscoped and unsessioned.
+     * NOT YET WIRED. Nothing in `app/` calls this — there is no role-assignment
+     * or scope-write path in the repository to call it from, and inventing one
+     * is outside `T-004`. The wiring belongs with the write paths when they
+     * exist, and must land in the same commit as the first caller: a revoker
+     * with no caller revokes nothing. `AC-T-004-04` is therefore PARTIAL — the
+     * mechanism is proven by `SessionSecurityTest`, the trigger does not exist.
+     *
+     * When wired, call this AFTER the change is committed in memory, so the
+     * very next request is both unscoped and unsessioned.
      */
     public function revokeAllFor(string $userId): int
     {
