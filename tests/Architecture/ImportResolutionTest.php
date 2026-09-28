@@ -47,14 +47,27 @@ final class ImportResolutionTest extends TestCase
             preg_match_all('/^\s*use\s+(App\\\\[A-Za-z0-9_\\\\]+)\s*;/m', $source, $matches);
 
             foreach ($matches[1] as $fqcn) {
-                $path = $root.'/'.str_replace('\\', '/', $fqcn).'.php';
+                // `App\Shared\Domain\DomainModel` lives at
+                // `app/Shared/Domain/DomainModel.php`: the `App\` namespace
+                // prefix maps to the `app/` DIRECTORY, it is not a path segment of
+                // its own. Building the path from the FQCN unchanged searched for
+                // `App/Shared/...` and found nothing.
+                //
+                // That went unnoticed because the check PASSES on Windows and
+                // macOS. Both filesystems are case-insensitive, so `App/` and
+                // `app/` are the same directory and the wrong path resolves
+                // anyway. It fails only on Linux, which is where CI runs — a
+                // defect that the local suite reports as clean.
+                $relative = preg_replace('/^App\\\\/', '', $fqcn) ?? $fqcn;
+                $relativePath = str_replace('\\', '/', $relative).'.php';
+                $path = base_path('app/'.$relativePath);
 
                 if (! is_file($path)) {
                     $unresolved[] = sprintf(
-                        '%s imports %s, but %s does not exist.',
+                        '%s imports %s, but app/%s does not exist.',
                         PhpSourceScanner::relative($file, $root),
                         $fqcn,
-                        str_replace('\\', '/', $fqcn).'.php',
+                        $relativePath,
                     );
                 }
             }
