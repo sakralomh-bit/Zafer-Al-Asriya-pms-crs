@@ -63,6 +63,15 @@ final class AuthorizationTest extends TestCase
     {
         parent::setUp();
 
+        // `AC-T-004-04` wiring: `ScopeGrantService` now cuts the subject's live
+        // sessions after a scope change, so this suite runs against the
+        // `database` session driver — which is what `config/session.php` and
+        // `.env` actually select. `phpunit.xml` defaults the suite to
+        // `SESSION_DRIVER=array`; against that driver the revocation cannot
+        // happen and `SessionRevoker` refuses loudly rather than pretending.
+        // The other `T-004` suites switch for the same reason.
+        config(['session.driver' => 'database']);
+
         $this->authorization = $this->app->make(AuthorizationService::class);
         $this->scopeResolver = $this->app->make(PropertyScopeResolver::class);
 
