@@ -30,7 +30,21 @@
     <php>
         <env name="APP_ENV" value="testing"/>
         <env name="APP_MAINTENANCE_DRIVER" value="file"/>
-        <env name="APP_KEY" value="base64:hc8hHq1B7Lq0bJfK6nQ0lZk1mT2xO0dS3vY5wE9pA7cI="/>
+        <!--
+            EXACTLY 32 bytes, base64-encoded. The previous value decoded to 33 and
+            `Illuminate\Encryption\Encrypter` rejected it with "Unsupported cipher or
+            incorrect key length" — but nothing noticed, because no test used a
+            cookie. `EncryptCookies` only runs inside the `web` middleware group, and
+            until the authentication routes existed no test reached it.
+
+            So the defect was invisible locally AND on CI: 359 green tests never
+            started a session over HTTP. The first route that does surfaced it.
+
+            `aes-256-cbc` accepts 16, 24, or 32 bytes only. A test key is a fixture
+            and this is not a secret — it is committed, it is for the test database,
+            and it is regenerated here rather than treated as a credential.
+        -->
+        <env name="APP_KEY" value="base64:APKlwcgM9aCKf1473uPbcoIRUsn3iW34Tv76oCo+/Ko="/>
         <env name="APP_DEBUG" value="false"/>
         <env name="BCRYPT_ROUNDS" value="4"/>
         <env name="CACHE_STORE" value="array"/>

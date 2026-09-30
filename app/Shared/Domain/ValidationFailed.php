@@ -39,4 +39,18 @@ final class ValidationFailed extends DomainFailure
     {
         return new self($message, [['field' => $field, 'message' => $message]]);
     }
+
+    /**
+     * A required field that was absent, blank, or not the expected type.
+     *
+     * ONE message for all three cases, and the message does not name the expected
+     * type. A client that sends `password` as an array and one that omits it get
+     * byte-identical answers: an error that distinguished them would be a
+     * description of this handler's internals, which `API-SPEC.md` §1.6 prohibits
+     * for internal class and shape detail.
+     */
+    public static function missingField(string $field): self
+    {
+        return self::field($field, 'This field is required.');
+    }
 }
