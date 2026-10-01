@@ -6,6 +6,9 @@ namespace Tests\Support;
 
 use App\Modules\Identity\Auth\Mfa\MfaFactorProvider;
 use App\Modules\Identity\Models\User;
+use App\Shared\Domain\BusinessRuleViolation;
+use App\Shared\Domain\DomainFailure;
+use App\Shared\Domain\ErrorCode;
 
 /**
  * A TEST-ONLY `MfaFactorProvider` backed by an in-memory map.
@@ -37,6 +40,25 @@ use App\Modules\Identity\Models\User;
  *     let that test pass for the wrong reason.
  *
  * This class lives in `tests/` and guards nothing.
+ *
+ * ================================================================================
+ * WHY `factorFor()` REFUSES INSTEAD OF SUBSTITUTING A DEFAULT
+ * ================================================================================
+ *
+ * `MfaFactorProvider` requires that an implementation refuse rather than return an
+ * empty or placeholder secret, and this class used to do the opposite: an identity
+ * with no entry in the map silently received `self::FACTOR`. That is the exact
+ * anti-pattern the interface names, because an empty secret is a value and a value
+ * verifies against codes computed from it — a provider that invents a factor hands
+ * every un-enrolled identity a working second factor.
+ *
+ * It was also the wrong thing to copy. `H-03` is still open, so this file is the
+ * closest thing to a specification an `H-03` implementer has, and a specification
+ * that teaches a fallback is worse than no specification at all.
+ *
+ * The default is therefore not gone — it is EXPLICIT. A test that wants "everyone
+ * shares one secret" says so by name, and a test that wants one identity enrolled
+ * says that instead. Neither is the absence of a decision.
  */
 final class ProvidesTestMfaFactors implements MfaFactorProvider
 {
@@ -58,18 +80,45 @@ final class ProvidesTestMfaFactors implements MfaFactorProvider
     private array $factors;
 
     /**
-     * @param  array<string, string>  $factors  subject id => secret. Defaults to
-     *                                          `FACTOR` for every identity, which
-     *                                          is enough for tests about codes
-     *                                          rather than about binding.
+     * Whether an identity with no entry is treated as enrolled in `FACTOR`.
+     *
+     * OPT-IN, and named for what it does rather than for how it is reached. The
+     * previous constructor took an empty array and silently meant "yes" — a test
+     * that forgot to enrol anyone still got a working factor for them, so a broken
+     * enrolment fixture looked like a passing one.
      */
-    public function __construct(array $factors = [])
+    private readonly bool $enrolEveryUnregisteredIdentity;
+
+    /**
+     * @param  array<string, string>  $factors  subject id => secret, for identities
+     *                                          that HAVE an enrolled factor
+     * @param  bool  $enrolEveryUnregisteredIdentity  grant `FACTOR` to any identity
+     *                                                not named in `$factors`
+     */
+    public function __construct(array $factors = [], bool $enrolEveryUnregisteredIdentity = false)
     {
         $this->factors = $factors;
+        $this->enrolEveryUnregisteredIdentity = $enrolEveryUnregisteredIdentity;
     }
 
     /**
-     * Give ONE identity a different factor, leaving the rest on the default.
+     * Enrol ONE identity in `FACTOR`.
+     *
+     * Preferred over the blanket constructor flag, because it names the identity
+     * that is enrolled. A test using this cannot accidentally enrol somebody it
+     * never thought about.
+     */
+    public function withDefaultFactorFor(string $subjectId): self
+    {
+        return $this->withFactorFor($subjectId, self::FACTOR);
+    }
+
+    /**
+     * Enrol ONE identity in a specific factor.
+     *
+     * Unrelated to the constructor flag: this names an identity, that one applies to
+     * identities nobody named. A test that overrides one subject keeps the blanket
+     * grant for the others only if it asked for the blanket grant.
      *
      * Returns `$this` mutated rather than a clone. The provider is rebuilt for
      * each test anyway, and a fluent "clone and return" shape invites a caller to
@@ -84,10 +133,36 @@ final class ProvidesTestMfaFactors implements MfaFactorProvider
         return $this;
     }
 
+    /**
+     * The enrolled factor for THIS identity, or a refusal.
+     *
+     * The refusal is the whole point of the method, and it is a
+     * `BusinessRuleViolation` carrying `MFA_REQUIRED` — the code
+     * `docs/API-SPEC.md` §2.1 already fixes at 403, so this introduces no new
+     * vocabulary and no new exception type. `BusinessRuleViolation` is what
+     * `SessionSecurity::requireUser()` already raises for the parallel case of
+     * "nobody is signed in", so the shape is the codebase's own.
+     *
+     * The message names no secret, no subject id, and no other identity. It does
+     * not even say whether the map is empty, so it cannot be used to enumerate who
+     * holds a factor.
+     *
+     * @throws DomainFailure when this identity has no enrolled factor
+     */
     public function factorFor(User $user): string
     {
         $subjectId = (string) $user->id;
 
-        return $this->factors[$subjectId] ?? self::FACTOR;
+        $factor = $this->factors[$subjectId]
+            ?? ($this->enrolEveryUnregisteredIdentity ? self::FACTOR : null);
+
+        if ($factor === null || $factor === '') {
+            throw new BusinessRuleViolation(
+                ErrorCode::MfaRequired,
+                'No second factor is enrolled for this identity.',
+            );
+        }
+
+        return $factor;
     }
 }

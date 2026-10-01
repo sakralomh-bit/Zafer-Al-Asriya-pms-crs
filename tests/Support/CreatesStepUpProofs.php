@@ -87,7 +87,12 @@ trait CreatesStepUpProofs
         );
 
         $totp = new TotpVerifier;
-        $provider = new ProvidesTestMfaFactors;
+
+        // The identity acting is enrolled EXPLICITLY. A bare provider refuses,
+        // which is the contract `MfaFactorProvider` documents — a fixture that
+        // silently invented a factor would let a test mint a proof for an identity
+        // that has no second factor at all.
+        $provider = (new ProvidesTestMfaFactors)->withDefaultFactorFor((string) $acting->id);
 
         $now = Carbon::now();
 
