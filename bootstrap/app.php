@@ -10,6 +10,7 @@ use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Route;
 use Symfony\Component\HttpFoundation\Response;
 
 return Application::configure(basePath: dirname(__DIR__))
@@ -40,6 +41,22 @@ return Application::configure(basePath: dirname(__DIR__))
         web: __DIR__.'/../routes/web.php',
         commands: __DIR__.'/../routes/console.php',
         health: '/up',
+        // `routes/api.php` is loaded by hand in the `then` callback below, NOT
+        // through the `api:` parameter. That parameter wraps the file in
+        // `Route::middleware('api')->prefix('api')`, and the `api` group has no
+        // session, no cookies, and no CSRF middleware — so an authentication
+        // route registered there could not satisfy `AC-T-004-07` at all. Stacking
+        // the `web` group on top of `api` would work by accident and would leave
+        // the stateless group's members in the stack, which is the arrangement
+        // that makes this control look present and unverified.
+        //
+        // So the file is loaded on the `web` group explicitly, with the `api`
+        // prefix applied here rather than by `api:`. The `v1` segment lives
+        // inside the file. The path shape is unchanged either way; the middleware
+        // group is the part that carries the security property.
+        then: function (): void {
+            Route::middleware('web')->prefix('api')->group(__DIR__.'/../routes/api.php');
+        },
     )
     ->withMiddleware(function (Middleware $middleware): void {
         // `API-SPEC.md` §1.3 makes `X-Correlation-ID` a required request header,

@@ -105,7 +105,12 @@ final class StepUpVerifierTest extends TestCase
         // DIFFERENT factors for different identities. With one shared secret,
         // "User A's code does not verify for User B" would pass for the wrong
         // reason and prove nothing about the binding.
-        $this->factors = new ProvidesTestMfaFactors;
+        //
+        // The blanket enrolment is OPT-IN and named. A bare provider refuses, per
+        // the `MfaFactorProvider` contract; these tests are about code and binding
+        // rather than about enrolment, so they say up front that every identity is
+        // enrolled rather than relying on a silent fallback to do it.
+        $this->factors = new ProvidesTestMfaFactors(enrolEveryUnregisteredIdentity: true);
 
         $this->app->instance(MfaFactorProvider::class, $this->factors);
         $this->verifier = $this->app->make(StepUpVerifier::class);
@@ -1077,10 +1082,13 @@ final class StepUpVerifierTest extends TestCase
     {
         $other = $this->makeUser('a.different.person@example.test', Role::Finance);
 
-        // A and B hold genuinely different factors.
+        // A and B hold genuinely different factors. The blanket enrolment is
+        // explicit: without it the acting identity would hold no factor at all and
+        // the test would be asserting on a refusal instead of on the binding.
         $this->app->instance(
             MfaFactorProvider::class,
-            (new ProvidesTestMfaFactors)->withFactorFor((string) $other->id, ProvidesTestMfaFactors::OTHER_FACTOR),
+            (new ProvidesTestMfaFactors(enrolEveryUnregisteredIdentity: true))
+                ->withFactorFor((string) $other->id, ProvidesTestMfaFactors::OTHER_FACTOR),
         );
         $verifier = $this->app->make(StepUpVerifier::class);
 
@@ -1104,7 +1112,10 @@ final class StepUpVerifierTest extends TestCase
         );
 
         // And A's code does not verify B's factor, so the reverse is equally
-        // refused: B cannot be proven by A's possession.
+        // refused: B cannot be proven by A's possession. Only B is enrolled here,
+        // and the blanket flag is OFF, so a code minted from A's factor is refused
+        // because B holds a DIFFERENT one — not because B holds none, which would
+        // make this assertion pass for the wrong reason.
         $this->assertNull(
             StepUpProof::mintFromVerifiedTotp(
                 $this->sessionsFor($other),
